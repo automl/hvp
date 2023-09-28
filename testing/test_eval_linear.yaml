@@ -1,0 +1,19 @@
+batch_size: 256
+ckp_key: model
+crop_size: 32  # 224
+dataset: CIFAR10  # ImageNet
+epochs: 100
+lars: false
+lr: 30.0
+momentum: 0.9
+resize_size: 36  # 256
+weight_decay: 0.0
+pretrained: checkpoint.pth
+output_dir: exp
+val_freq: 1
+logger_freq: 50
+dist_url: env://
+dist_backend: gloo  # unix: nccl, win: gloo
+num_workers: 8
+arch: resnet18
+data_path: ..\datasets\CIFAR10  # /data/datasets/ImageNet/imagenet-pytorch
