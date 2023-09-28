@@ -2,8 +2,7 @@ from typing import Sequence, Tuple
 
 import torch
 import torchvision.transforms.functional as F
-from torchvision.transforms import ColorJitter, GaussianBlur, InterpolationMode, \
-    RandomGrayscale, RandomResizedCrop
+from torchvision.transforms import ColorJitter, GaussianBlur, InterpolationMode, RandomResizedCrop
 
 IMAGENET_DEFAULT_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_DEFAULT_STD = (0.229, 0.224, 0.225)
@@ -16,18 +15,22 @@ class TransformParams(object):
     def __init__(self,
                  crop_size: int = 224,
                  crop_scale: Tuple[float, float] = (0.2, 1.0),
-                 interpolation: InterpolationMode = InterpolationMode.BILINEAR,
+                 interpolation: InterpolationMode = InterpolationMode.BICUBIC,
+                 colorj_prob: float = 0.8,
                  blur_prob: float = 0.5,
                  hflip_prob: float = 0.5,
+                 solarize_prob: float = 0.2,
                  mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
                  std: Sequence[float] = IMAGENET_DEFAULT_STD,
                  ):
         self.rrc = RandomResizedCrop(crop_size, scale=crop_scale, interpolation=interpolation)
-        self.color_jitter = ColorJitter(0.4, 0.4, 0.4, 0.1)
+        self.colorj_prob = colorj_prob
+        self.color_jitter = ColorJitter(0.4, 0.4, 0.2, 0.1)
         self.gray_prob = 0.2
         self.blur = GaussianBlur(9, (0.1, 2.0))
         self.blur_prob = blur_prob
         self.hflip_prob = hflip_prob
+        self.solarize_prob = solarize_prob
         self.mean = mean
         self.std = std
 
@@ -38,8 +41,15 @@ class TransformParams(object):
         img = F.resized_crop(img, i, j, h, w, self.rrc.size, self.rrc.interpolation, antialias=self.rrc.antialias)
         params = [(height, width, i, j, h, w)]
 
-        # RandomApply-ColorJitter
-        if torch.rand(1) < 0.8:
+        # HorizontalFlip
+        if torch.rand(1) < self.hflip_prob:
+            img = F.hflip(img)
+            params.append(1)
+        else:
+            params.append(0)
+
+        # ColorJitter
+        if torch.rand(1) < self.colorj_prob:
             fn_idx, brightness_factor, contrast_factor, saturation_factor, hue_factor = \
                 self.color_jitter.get_params(self.color_jitter.brightness, self.color_jitter.contrast,
                                              self.color_jitter.saturation, self.color_jitter.hue)
@@ -52,32 +62,32 @@ class TransformParams(object):
                     img = F.adjust_saturation(img, saturation_factor)
                 elif fn_id == 3 and hue_factor is not None:
                     img = F.adjust_hue(img, hue_factor)
-            params.append((brightness_factor, contrast_factor, saturation_factor, hue_factor, fn_idx.tolist()))
+            params.append((fn_idx.tolist(), brightness_factor, contrast_factor, saturation_factor, hue_factor))
         else:
-            params.append(False)
+            params.append(([0, 1, 2, 3], 1, 1, 1, 0))
 
-        # RandomGrayscale
+        # Grayscale
         if torch.rand(1) < self.gray_prob:
             num_output_channels, _, _ = F.get_dimensions(img)
             img = F.rgb_to_grayscale(img, num_output_channels=num_output_channels)
-            params.append(True)
+            params.append(1)
         else:
-            params.append(False)
+            params.append(0)
 
-        # RandomApply-GaussianBlur
+        # GaussianBlur
         if torch.rand(1) < self.blur_prob:
-            params.append(False)
-        else:
             sigma = self.blur.get_params(self.blur.sigma[0], self.blur.sigma[1])
             img = F.gaussian_blur(img, self.blur.kernel_size, [sigma, sigma])
             params.append(sigma)
-
-        # RandomHorizontalFlip
-        if torch.rand(1) < self.hflip_prob:
-            img = F.hflip(img)
-            params.append(True)
         else:
-            params.append(False)
+            params.append(0)
+
+        # Solarize
+        if torch.rand(1) < self.solarize_prob:
+            img = F.solarize(img, 128)
+            params.append(1)
+        else:
+            params.append(0)
 
         img = F.to_tensor(img)
         img = F.normalize(img, self.mean, self.std, False)

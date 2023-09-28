@@ -1,4 +1,5 @@
 from omegaconf import OmegaConf
+
 import eval_linear, eval_knn
 import pretrain
 import utils
@@ -14,7 +15,9 @@ if __name__ == "__main__":
     print('*************STARTING PRETRAINING*************')
     pretrain.main(cfg)
 
-    ################## LINEAR EVALUATION ##################
+    ####################################################################################################################
+    # LINEAR EVALUATION
+    ####################################################################################################################
 
     print('*************STARTING LINEAR EVAL EVALUATION: ImageNet*************')
     eval_linear_cfg = OmegaConf.load("eval_linear.yaml")
@@ -25,62 +28,49 @@ if __name__ == "__main__":
     eval_linear_cfg.dist_url = cfg.dist_url
     eval_linear.main(eval_linear_cfg)
 
-    print('STARTING k-NN EVALUATION')
-    eval_knn_cfg = OmegaConf.load("eval_knn.yaml")
-    # copy dist parameters
-    eval_knn_cfg.gpu = cfg.gpu
-    eval_knn_cfg.rank = cfg.rank
-    eval_knn_cfg.world_size = cfg.world_size
-    eval_knn_cfg.dist_url = cfg.dist_url
-    eval_knn_cfg.timeout = 1800*20
-
-    eval_knn.main(eval_knn_cfg)
-
     print('*************STARTING LINEAR EVALUATION: CIFAR10*************')
     eval_linear_cfg.dataset = "CIFAR10"
-    # eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = False
     eval_linear_cfg.data_path = "../datasets"
     eval_linear.main(eval_linear_cfg)
 
     print('*************STARTING LINEAR EVALUATION: CIFAR100*************')
     eval_linear_cfg.dataset = "CIFAR100"
-    # eval_linear_cfg.batch_size = 512
-    eval_linear_cfg.finetune = False
-    eval_linear_cfg.data_path = "../datasets"
-    eval_linear.main(eval_linear_cfg)
-
-    print('*************STARTING LINEAR EVALUATION: FOOD101*************')
-    eval_linear_cfg.dataset = "Food101"
-    # eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = False
     eval_linear_cfg.data_path = "../datasets"
     eval_linear.main(eval_linear_cfg)
 
     print('*************STARTING LINEAR EVALUATION: Flowers102*************')
     eval_linear_cfg.dataset = "Flowers102"
-    # eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = False
     eval_linear_cfg.data_path = "../datasets"
     eval_linear.main(eval_linear_cfg)
 
     print('*************STARTING LINEAR EVALUATION: Places365*************')
     eval_linear_cfg.dataset = "Places365"
-    # eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = False
     eval_linear_cfg.data_path = "/work/dlclarge1/ferreira-simsiam/minsim_experiments/datasets/places365"
     eval_linear.main(eval_linear_cfg)
 
     print('*************STARTING LINEAR EVALUATION: iNaturalist (using train_mini)*************')
     eval_linear_cfg.dataset = "inat21"
-    # eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = False
     eval_linear_cfg.data_path = "/work/dlclarge1/ferreira-simsiam/minsim_experiments/datasets"
     eval_linear.main(eval_linear_cfg)
 
-    ################## FINE-TUNING ##################
+    print('*************STARTING LINEAR EVALUATION: FOOD101*************')
+    eval_linear_cfg.dataset = "Food101"
+    eval_linear_cfg.lr = 5e-5
+    eval_linear_cfg.weight_decay = 0.05
+    eval_linear_cfg.finetune = False
+    eval_linear_cfg.data_path = "../datasets"
+    eval_linear.main(eval_linear_cfg)
 
-    print('*************STARTING FINETUNING: CIFAR10*************')
+    ####################################################################################################################
+    # FINETUNING
+    ####################################################################################################################
+
+    print('*************STARTING FINETUNE: CIFAR10*************')
     eval_linear_cfg.dataset = "CIFAR10"
     eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = True
@@ -88,10 +78,10 @@ if __name__ == "__main__":
     eval_linear_cfg.weight_decay = 0.05
     eval_linear_cfg.optimizer = "adamw"
     eval_linear_cfg.epochs = 300
-    eval_linear_cfg.data_path = "../datasets"
+    eval_linear_cfg.data_path = "/work/dlclarge1/ferreira-simsiam/minsim_experiments/datasets"
     eval_linear.main(eval_linear_cfg)
 
-    print('*************STARTING FINETUNING: CIFAR100*************')
+    print('*************STARTING FINETUNE: CIFAR100*************')
     eval_linear_cfg.dataset = "CIFAR100"
     eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = True
@@ -99,32 +89,21 @@ if __name__ == "__main__":
     eval_linear_cfg.weight_decay = 0.05
     eval_linear_cfg.optimizer = "adamw"
     eval_linear_cfg.epochs = 300
-    eval_linear_cfg.data_path = "../datasets"
+    eval_linear_cfg.data_path = "/work/dlclarge1/ferreira-simsiam/minsim_experiments/datasets"
     eval_linear.main(eval_linear_cfg)
 
-    print('*************STARTING FINETUNING: FOOD101*************')
-    eval_linear_cfg.dataset = "Food101"
-    eval_linear_cfg.batch_size = 512
-    eval_linear_cfg.finetune = True
-    eval_linear_cfg.lr = 5e-6
-    eval_linear_cfg.weight_decay = 0.05
-    eval_linear_cfg.optimizer = "adamw"
-    eval_linear_cfg.epochs = 300
-    eval_linear_cfg.data_path = "../datasets"
-    eval_linear.main(eval_linear_cfg)
-
-    print('*************STARTING FINETUNING: Flowers102*************')
+    print('*************STARTING FINETUNE: Flowers102*************')
     eval_linear_cfg.dataset = "Flowers102"
     eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = True
-    eval_linear_cfg.lr = 5e-4
+    eval_linear_cfg.lr = 5e-5
     eval_linear_cfg.weight_decay = 0.05
     eval_linear_cfg.optimizer = "adamw"
     eval_linear_cfg.epochs = 300
-    eval_linear_cfg.data_path = "../datasets"
+    eval_linear_cfg.data_path = "/work/dlclarge1/ferreira-simsiam/minsim_experiments/datasets"
     eval_linear.main(eval_linear_cfg)
 
-    print('*************STARTING FINETUNING: Places365*************')
+    print('*************STARTING FINETUNE EVALUATION: Places365*************')
     eval_linear_cfg.dataset = "Places365"
     eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = True
@@ -135,13 +114,29 @@ if __name__ == "__main__":
     eval_linear_cfg.data_path = "/work/dlclarge1/ferreira-simsiam/minsim_experiments/datasets/places365"
     eval_linear.main(eval_linear_cfg)
 
-    print('*************STARTING LINEAR EVAL EVALUATION: iNaturalist (using train_mini)*************')
+    print('*************STARTING FINETUNE: iNaturalist (using train_mini)*************')
     eval_linear_cfg.dataset = "inat21"
     eval_linear_cfg.batch_size = 512
     eval_linear_cfg.finetune = True
-    eval_linear_cfg.lr = 7.5e-5
+    eval_linear_cfg.lr = 5e-5
     eval_linear_cfg.weight_decay = 0.05
     eval_linear_cfg.epochs = 100
     eval_linear_cfg.optimizer = "adamw"
     eval_linear_cfg.data_path = "/work/dlclarge1/ferreira-simsiam/minsim_experiments/datasets"
     eval_linear.main(eval_linear_cfg)
+
+    print('STARTING kNN EVALUATION')
+    # knn code currently times out when using multiple GPUs and when using cuda -> increase timeout interval to 10h
+    # make sure to run knn eval last
+    import torch.distributed as dist
+    dist.destroy_process_group()
+
+    eval_knn_cfg = OmegaConf.load("eval_knn.yaml")
+    # copy dist parameters
+    eval_knn_cfg.gpu = cfg.gpu
+    eval_knn_cfg.rank = cfg.rank
+    eval_knn_cfg.world_size = cfg.world_size
+    eval_knn_cfg.dist_url = cfg.dist_url
+    eval_knn_cfg.timeout = 1800*20
+
+    eval_knn.main(eval_knn_cfg)

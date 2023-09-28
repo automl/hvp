@@ -3,7 +3,7 @@ import sys
 
 import torch
 import torch.distributed as dist
-
+import datetime
 
 def init_distributed_mode(args):
     # launched with torch.distributed.launch
@@ -26,11 +26,15 @@ def init_distributed_mode(args):
         print('Does not support training without GPU.')
         sys.exit(1)
 
+    seconds = args.timeout if hasattr(args, "timeout") else 1800
+    timeout = datetime.timedelta(seconds=seconds)
+
     dist.init_process_group(
         backend=args.dist_backend,
         init_method=args.dist_url,
         world_size=args.world_size,
         rank=args.rank,
+        timeout=timeout
     )
 
     torch.cuda.set_device(args.gpu)

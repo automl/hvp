@@ -1,8 +1,8 @@
 # model parameters
-arch: vit_small
+arch: vit_tiny
 img_size: 224
 patch_size: 16
-out_dim: 65536
+out_dim: 4096
 norm_last_layer: true
 momentum_teacher: 0.996
 use_bn_in_head: false
@@ -14,11 +14,11 @@ warmup_teacher_temp_epochs: 0
 
 # training/optimization parameters
 fp16: true
-batch_size: 1024
+batch_size: 128
 clip_grad: 3.0
 drop_path_rate: 0.1
-epochs: 100
-warmup_epochs: 10
+epochs: 3
+warmup_epochs: 1
 freeze_last_layer: 1
 lr: 0.0005
 min_lr: 1.0e-06
@@ -30,12 +30,12 @@ weight_decay_end: 0.4
 global_crops_scale:
 - 0.4
 - 1.0
-global_crops_size: 224
+global_crops_size: 32
 local_crops_number: 8
 local_crops_scale:
 - 0.05
 - 0.4
-local_crops_size: 96
+local_crops_size: 20
 
 # MinSim parameters
 limit_comparisons: 0
@@ -44,9 +44,9 @@ num_local_crops_loader: 8
 select_fn: identity
 
 # Misc parameters
-dataset: ImageNet
-data_path: null
-dist_backend: nccl
+dataset: Test32
+data_path: path/to/dataset
+dist_backend: gloo
 dist_url: env://
 grad_accum_steps: 1
 log_freq: 50
@@ -54,6 +54,6 @@ num_workers: 8
 print_freq: 10
 saveckp_freq: 0
 seed: 0
-output_dir: .
+output_dir: exp
 use_adv_metric: true
 adv_metric_freq: 10

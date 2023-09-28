@@ -2,7 +2,6 @@ import argparse
 import json
 import os
 import sys
-import math
 from pathlib import Path
 
 import torch
@@ -101,12 +100,14 @@ def main(cfg):
     # load weights to evaluate
     utils.load_pretrained_weights(model, cfg.pretrained, cfg.ckp_key)
     print(f"Model {cfg.arch} built.")
-    print(model)
 
     # init the fc layer
     linear_classifier = LinearClassifier(embed_dim, num_labels=cfg.num_labels)
     linear_classifier = linear_classifier.cuda()
     linear_classifier = nn.parallel.DistributedDataParallel(linear_classifier, device_ids=[cfg.gpu])
+
+    if "vit" in cfg.arch:
+        model = VitWrapper(model, cfg.n_last_blocks, cfg.avgpool)
 
     if cfg.finetune:
         for p in model.parameters():
@@ -139,7 +140,9 @@ def main(cfg):
     else:
         raise ValueError(f"Unknown optimizer: {cfg.optimizer}")
 
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, cfg.epochs, eta_min=0)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, cfg.epochs, eta_min=0)
+
+    fp16_scaler = torch.cuda.amp.GradScaler() if "vit" in cfg.arch else None
 
     log_dir = os.path.join(cfg.output_dir, "tensorboard")
     board = SummaryWriter(log_dir) if dist.is_main_process() else None
@@ -147,10 +150,8 @@ def main(cfg):
     # Optionally resume from a checkpoint
     to_restore = {"epoch": 0, "best_acc": 0.}
 
-    checkpoint_name = "checkpoint.pth.tar" if cfg.dataset == "ImageNet" else f"checkpoint_{cfg.dataset}.pth.tar"
-    if not cfg.finetune:
-        checkpoint_name = f"checkpoint.pth.tar" if cfg.dataset == "ImageNet" else f"checkpoint_{cfg.dataset}_linear_eval.pth.tar"
-
+    # checkpoint_name = "checkpoint.pth.tar" if cfg.dataset == "ImageNet" else f"checkpoint_{cfg.dataset}.pth.tar"
+    checkpoint_name = f"{'fine' if cfg.finetune else 'eval'}_checkpoint_{str(cfg.dataset).lower()}.pth"
     if cfg.finetune:
         # load classifier and backbone
         utils.restart_from_checkpoint(
@@ -159,6 +160,7 @@ def main(cfg):
             model=model,
             linear_classifier=linear_classifier,
             optimizer=optimizer,
+            fp16_scaler=fp16_scaler,
         )
     else:
         # only classifier needs to be loaded
@@ -167,17 +169,19 @@ def main(cfg):
             run_variables=to_restore,
             linear_classifier=linear_classifier,
             optimizer=optimizer,
+            fp16_scaler=fp16_scaler,
         )
     start_epoch = to_restore["epoch"]
     best_acc = to_restore["best_acc"]
 
     for epoch in range(start_epoch, cfg.epochs):
         train_loader.sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, init_lr, epoch, cfg)
 
         # train for one epoch
-        train_stats = train(train_loader, model, linear_classifier, criterion, optimizer, epoch, cfg, board)
+        train_stats = train(train_loader, model, linear_classifier, criterion, optimizer, epoch, cfg, board, fp16_scaler)
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()}, 'epoch': epoch}
+
+        scheduler.step()
 
         # evaluate on validation set
         if epoch % cfg.val_freq == 0 or epoch == cfg.epochs - 1:
@@ -203,15 +207,19 @@ def main(cfg):
                 "optimizer": optimizer.state_dict(),
                 "linear_classifier": linear_classifier.state_dict(),
                 "best_acc": best_acc,
+                "fp16_scaler": fp16_scaler.state_dict() if fp16_scaler is not None else None,
             }
             path = os.path.join(cfg.output_dir, checkpoint_name)
             torch.save(save_dict, path)
 
+    if dist.is_main_process():
+        with (Path(cfg.output_dir) / "results.txt").open("a") as f:
+            f.write(f"{'fine' if cfg.finetune else 'eval'} of {cfg.dataset}:\t {best_acc}" + "\n")
     print("Training of the supervised linear classifier on frozen features completed.\n"
           "Top-1 test accuracy: {acc:.1f}".format(acc=best_acc))
 
 
-def train(loader, model, linear_classifier, criterion, optimizer, epoch, cfg, board):
+def train(loader, model, linear_classifier, criterion, optimizer, epoch, cfg, board, fp16_scaler):
     # switch to train mode
     linear_classifier.train()
     if cfg.finetune:
@@ -227,27 +235,25 @@ def train(loader, model, linear_classifier, criterion, optimizer, epoch, cfg, bo
         images = images.cuda(non_blocking=True)
         targets = targets.cuda(non_blocking=True)
 
-        # compute output
-        if cfg.finetune:
-            output = model(images)
-        else:
-            with torch.no_grad():
-                if "vit" in cfg.arch:
-                    intermediate_output = model.get_intermediate_layers(images, cfg.n_last_blocks)
-                    output = torch.cat([x[:, 0] for x in intermediate_output], dim=-1)
-                    if cfg.avgpool:
-                        output = torch.cat((output.unsqueeze(-1), torch.mean(intermediate_output[-1][:, 1:], dim=1).unsqueeze(-1)), dim=-1)
-                        output = output.reshape(output.shape[0], -1)
-                else:
+        with torch.cuda.amp.autocast(fp16_scaler is not None):
+            if cfg.finetune:
+                output = model(images)
+            else:
+                with torch.no_grad():
                     output = model(images)
 
-        output = linear_classifier(output)
-        loss = criterion(output, targets)
+            output = linear_classifier(output)
+            loss = criterion(output, targets)
 
         # compute gradient and do optimizer step
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        if fp16_scaler:
+            fp16_scaler.scale(loss).backward()
+            fp16_scaler.step(optimizer)
+            fp16_scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
 
         # measure accuracy and record loss
         acc1, acc5 = utils.accuracy(output, targets, topk=(1, 5))
@@ -259,7 +265,7 @@ def train(loader, model, linear_classifier, criterion, optimizer, epoch, cfg, bo
         metric_logger.update(acc1=acc1[0])
         metric_logger.update(acc5=acc5[0])
 
-        if dist.is_main_process() and it % cfg.logger_freq:
+        if dist.is_main_process() and it % cfg.log_freq:
             board.add_scalar(tag="eval acc1", scalar_value=acc1, global_step=it)
             board.add_scalar(tag="eval loss", scalar_value=loss.item(), global_step=it)
             board.add_scalar(tag="eval lr", scalar_value=optimizer.param_groups[0]["lr"], global_step=it)
@@ -282,19 +288,7 @@ def validate(loader, model, linear_classifier, criterion, cfg):
             images = images.cuda(non_blocking=True)
             target = target.cuda(non_blocking=True)
 
-            if cfg.finetune:
-                output = model(images)
-            else:
-                with torch.no_grad():
-                    if "vit" in cfg.arch:
-                        intermediate_output = model.get_intermediate_layers(images, cfg.n_last_blocks)
-                        output = torch.cat([x[:, 0] for x in intermediate_output], dim=-1)
-                        if cfg.avgpool:
-                            output = torch.cat((output.unsqueeze(-1), torch.mean(intermediate_output[-1][:, 1:], dim=1).unsqueeze(-1)), dim=-1)
-                            output = output.reshape(output.shape[0], -1)
-                    else:
-                        output = model(images)
-
+            output = model(images)
             output = linear_classifier(output)
             loss = criterion(output, target)
 
@@ -311,6 +305,22 @@ def validate(loader, model, linear_classifier, criterion, cfg):
               .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+
+
+class VitWrapper(nn.Module):
+    def __init__(self, model, n_last_blocks, avgpool):
+        super().__init__()
+        self.model = model
+        self.n_last_blocks = n_last_blocks
+        self.avgpool = avgpool
+
+    def forward(self, x):
+        intermediate_output = self.model.get_intermediate_layers(x, self.n_last_blocks)
+        output = torch.cat([x[:, 0] for x in intermediate_output], dim=-1)
+        if self.avgpool:
+            output = torch.cat((output.unsqueeze(-1), torch.mean(intermediate_output[-1][:, 1:], dim=1).unsqueeze(-1)), dim=-1)
+            output = output.reshape(output.shape[0], -1)
+        return output
 
 
 class LinearClassifier(nn.Module):
@@ -330,59 +340,63 @@ class LinearClassifier(nn.Module):
         return self.linear(x)
 
 
-def adjust_learning_rate(optimizer, init_lr, epoch, cfg):
-    """Decay the learning rate based on schedule"""
-    cur_lr = init_lr * 0.5 * (1. + math.cos(math.pi * epoch / cfg.epochs))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = cur_lr
-
-
 def get_args_parser():
-    p = argparse.ArgumentParser(description='PyTorch Eval-Linear ImageNet', add_help=False)
-    p.add_argument('--dataset', default="ImageNet", type=str,
-                   help='Specify dataset. (default: ImageNet)')
-    p.add_argument('--data_path', type=str,
-                   help='(root) path to dataset')
+    p = argparse.ArgumentParser(description='Linear-Eval for DINO', add_help=False)
+    # model parameters
     p.add_argument('-a', '--arch', type=str,
-                   help="Name of architecture to train (default: resnet50)")
-    p.add_argument('--epochs', type=int,
-                   help='number of total epochs to run (default: 90)')
+                   help="Model architecture (default: vit_small)")
+    p.add_argument('--img_size', type=int,
+                   help="input image size (default: 224)")
+    p.add_argument('--patch_size', type=int,
+                   help="patch resolution of the model (default: 16)")
+
+    # training parameters
+    p.add_argument('--avgpool', type=utils.bool_flag,
+                   help="Whether to concatenate the global average pooled features to the [CLS] token (default: False)")
     p.add_argument('-b', '--batch-size', type=int,
-                   help='total-batch-size (default: 4096)')
+                   help='total-batch-size (default: 1024)')
+    p.add_argument('--epochs', type=int,
+                   help='number of total epochs to run (default: 100)')
     p.add_argument('--lr', type=float,
-                   help='initial (base) learning rate (default: 0.1)')
+                   help='initial (base) learning rate (default: 0.001)')
     p.add_argument('--momentum', type=float,
                    help='momentum (default: 0.9)')
-    p.add_argument('--wd', '--weight_decay', type=float, dest='weight_decay',
-                   help='weight decay (default: 0.)')
-    p.add_argument('--resize_size', type=int,
-                   help="Resize size of images before center-crop (default: 256)")
-    p.add_argument('--crop_size', type=int,
-                   help="Size of center-crop (default: 224)")
+    p.add_argument('--n_last_blocks', type=int,
+                   help="Concatenate [CLS] tokens for the 'n' last blocks. (default: 4)")
     p.add_argument('--optimizer', type=str, choices=['adamw', 'sgd', 'lars'],
                    help="Optimizer (default: sqd)")
+    p.add_argument('--wd', '--weight_decay', type=float, dest='weight_decay',
+                   help='weight decay (default: 0.)')
     p.add_argument('--finetune', type=utils.bool_flag,
                    help="")
 
-    # additional configs:
-    p.add_argument('--pretrained', default="checkpoint.pth", type=str,
-                   help="path to simsiam pretrained checkpoint (default: checkpoint.pth)")
-    p.add_argument('--output_dir', default=".", type=str,
-                   help='Path to save logs and checkpoints (default: .)')
-    p.add_argument('--ckp_key', default="model", type=str,
-                   help='Checkpoint key (default: model)')
-    p.add_argument('--val_freq', default=1, type=int,
-                   help="Validate model every x epochs (default: 1)")
-    p.add_argument('--logger_freq', default=50, type=int,
-                   help="Log progress every x iterations to tensorboard (default: 50)")
-    p.add_argument('--dist-url', default="env://", type=str,
+    # augmentation parameters
+    p.add_argument('--crop_size', type=int,
+                   help="Size of center-crop (default: 224)")
+    p.add_argument('--resize_size', type=int,
+                   help="Resize size of images before center-crop (default: 256)")
+
+    # misc parameters
+    p.add_argument('--dataset', type=str,
+                   help='Specify dataset. (default: ImageNet)')
+    p.add_argument('--data_path', type=str,
+                   help='(root) path to dataset')
+    p.add_argument('--dist-url', type=str,
                    help="url used to set up distributed training (default: env://)")
-    p.add_argument('--dist-backend', default="nccl", type=str,
+    p.add_argument('--dist-backend', type=str,
                    help="distributed backend (default: nccl)")
-    p.add_argument('--num_workers', default=8, type=int,
+    p.add_argument('--ckp_key', type=str,
+                   help='Checkpoint key (default: teacher)')
+    p.add_argument('--pretrained', type=str,
+                   help="path to simsiam pretrained checkpoint (default: checkpoint.pth)")
+    p.add_argument('--output_dir', type=str,
+                   help='Path to save logs and checkpoints (default: .)')
+    p.add_argument('--log_freq', type=int,
+                   help="Log progress every x iterations to tensorboard (default: 50)")
+    p.add_argument('--num_workers', type=int,
                    help="number of data loading workers (default: 8)")
-    p.add_argument('--n_last_blocks', default=4, type=int, help="""Concatenate [CLS] tokens
-            for the `n` last blocks. We use `n=4` when evaluating ViT-Small and `n=1` with ViT-Base.""")
+    p.add_argument('--val_freq', type=int,
+                   help="Validate model every x epochs (default: 1)")
 
     return p
 

@@ -1,12 +1,12 @@
 # model parameters
-arch: vit_small
+arch: vit_tiny
 img_size: 224
 patch_size: 16
 
 # training/optimization parameters
 avgpool: false
-batch_size: 1024
-epochs: 100
+batch_size: 128
+epochs: 3
 lr: 0.001
 momentum: 0.9
 n_last_blocks: 4
@@ -18,14 +18,13 @@ crop_size: 224
 resize_size: 256
 
 # misc
-dataset: ImageNet
-data_path: null
+dataset: Test224
+data_path: path/to/dataset
 dist_backend: nccl
 dist_url: env://
 ckp_key: teacher
-pretrained: checkpoint.pth
+pretrained: exp/checkpoint.pth
 log_freq: 50
 num_workers: 8
-output_dir: .
+output_dir: exp
 val_freq: 1
-finetune: false

@@ -18,11 +18,11 @@ data_path: null
 dist_backend: nccl
 dist_url: env://
 num_workers: 10
-output_dir: .
+output_dir: exp
 pretrained: checkpoint.pth
 #val_freq: 1
 load_features: false
-use_cuda: false
+use_cuda: true
 nb_knn:
 - 10
 - 20

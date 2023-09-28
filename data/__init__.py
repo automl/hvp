@@ -4,9 +4,8 @@ from typing import Sequence, Tuple
 
 from torchvision.transforms import CenterCrop, ColorJitter, Compose, GaussianBlur, InterpolationMode,  \
     Normalize, RandomApply, RandomGrayscale, RandomHorizontalFlip, RandomResizedCrop, Resize, ToTensor
-from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, VOCDetection, INaturalist, Places365, \
-    FakeData, Flowers102, StanfordCars, INaturalist, Food101
-
+from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, FakeData, Flowers102, StanfordCars, INaturalist, \
+    Places365, Food101
 
 IMAGENET_DEFAULT_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_DEFAULT_STD = (0.229, 0.224, 0.225)
@@ -21,15 +20,21 @@ FLOWERS102_DEFAULT_STD = (0.2966, 0.2455, 0.2698)
 class MultiCropsTransform:
     """Take multiple random crops of one image as the query and key."""
 
-    def __init__(self, base_transform, num_crops):
-        self.base_transform = base_transform
+    def __init__(self, gt1, gt2, lt, num_crops, local_crops_number):
+        self.gt1 = gt1
+        self.gt2 = gt2
+        self.lt = lt
         self.num_crops = num_crops
+        self.local_crops_number = local_crops_number
 
     def __call__(self, x):
-        images = []
-        params = []
-        for _ in range(self.num_crops):
-            img, p = self.base_transform(x)
+        images, params = [], []
+        for n in range(self.num_crops):
+            img, p = self.gt1(x) if n % 2 == 0 else self.gt2(x)
+            images.append(img)
+            params.append(p)
+        for _ in range(self.local_crops_number):
+            img, p = self.lt(x)
             images.append(img)
             params.append(p)
         return images, params
@@ -52,7 +57,7 @@ def make_pretrain_transform(
 ):
     transforms_list = [
         RandomResizedCrop(crop_size, scale=crop_scale, interpolation=interpolation),
-        RandomApply([ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
+        RandomApply([ColorJitter(0.4, 0.4, 0.2, 0.1)], p=0.8),
         RandomGrayscale(p=0.2),
     ]
     if blur_prob > 0.0:
@@ -71,7 +76,7 @@ def make_pretrain_transform(
 def make_classification_train_transform(
         crop_size: int = 224,
         crop_scale: Tuple[float, float] = (0.08, 1.0),
-        interpolation: InterpolationMode = InterpolationMode.BILINEAR,
+        interpolation: InterpolationMode = InterpolationMode.BICUBIC,
         hflip_prob: float = 0.5,
         mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
         std: Sequence[float] = IMAGENET_DEFAULT_STD,
@@ -88,7 +93,7 @@ def make_classification_train_transform(
 def make_classification_val_transform(
         resize_size: int = 256,
         crop_size: int = 224,
-        interpolation: InterpolationMode = InterpolationMode.BILINEAR,
+        interpolation: InterpolationMode = InterpolationMode.BICUBIC,
         mean: Sequence[float] = IMAGENET_DEFAULT_MEAN,
         std: Sequence[float] = IMAGENET_DEFAULT_STD,
 ):
@@ -101,22 +106,21 @@ def make_classification_val_transform(
     return Compose(transforms_list)
 
 
-
 def make_dataset(
         root: str,
         dataset: str,
         train: bool,
         transform):
     if dataset == 'CIFAR10':
-        return CIFAR10(root, download=False, train=train, transform=transform), 10
+        return CIFAR10(root, download=True, train=train, transform=transform), 10
     elif dataset == 'CIFAR100':
-        return CIFAR100(root, download=False, train=train, transform=transform), 100
+        return CIFAR100(root, download=True, train=train, transform=transform), 100
     elif dataset == 'Food101':
         split = "train" if train else "test"
         return Food101(root, download=False, split=split, transform=transform), 101
     elif dataset == "Flowers102":
         split = "train" if train else "test"
-        return Flowers102(root, download=False, split=split, transform=transform), 102
+        return Flowers102(root, download=True, split=split, transform=transform), 102
     elif dataset == "StanfordCars":
         split = "train" if train else "test"
         return StanfordCars(root, download=True, split=split, transform=transform), 196
