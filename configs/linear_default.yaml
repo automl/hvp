@@ -1,0 +1,13 @@
+arch: resnet50
+arch_kwargs: null
+batch_size: 4096
+epochs: 90
+optim: sgd
+lr: 0.1
+dataset: imagenet
+data_path: null
+output_dir: .
+pretrained_weights: checkpoint.pth
+ckp_key: model
+num_workers: 8
+val_freq: 1

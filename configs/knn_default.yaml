@@ -1,0 +1,17 @@
+arch: resnet50
+arch_kwargs: null
+batch_size: 4096
+dataset: imagenet
+data_path: null
+nb_knn:
+- 10
+- 20
+- 100
+- 200
+temperature: 0.07
+pretrained_weights: checkpoint.pth
+ckp_key: model
+num_workers: 8
+output_dir: .
+dump_features: false
+use_cuda: false

@@ -1,0 +1,25 @@
+arch: resnet50
+arch_kwargs: {"zero_init_residual": true}
+proj_hidden_dim: 2048
+out_dim: 128
+use_bn_in_head: true
+batch_size: 4096
+optim: lars
+lr: 0.3  # 0.075 with sqrt_lr
+sqrt_lr: false
+momentum: 0.9
+weight_decay: 1e-4  # 1e-6 in paper, but 1e-4 on https://github.com/google-research/simclr
+epochs: 100
+warmup_epochs: 10
+use_hvs: false
+num_views: 2
+
+dataset: imagenet
+data_path: null
+num_workers: 8
+output_dir: .
+log_freq: 100
+save_ckp_freq: 0
+grad_accum_steps: 1
+use_fp16: true
+seed: 0

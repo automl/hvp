@@ -1,335 +1,288 @@
 import argparse
+import datetime
 import json
 import math
 import os
-import sys
 import time
-import datetime
+from collections import defaultdict
 from pathlib import Path
 
 import torch
-import torch.nn as nn
-import torch.nn.parallel
-import torch.backends.cudnn as cudnn
-import torch.optim
-import torch.utils.data
-from omegaconf import OmegaConf
-from torch.utils.data import DistributedSampler, DataLoader
-from torch.utils.tensorboard import SummaryWriter
+import torchvision.models as torch_models
+from torch.nn.parallel import DistributedDataParallel as DDP  # noqa
+from torch.utils.data import DataLoader, DistributedSampler
 
 import data
-from utils import distributed as dist
-import builder
-import select_crops
-import custom_transform
+import distributed as dist
+import losses
+# import models.vision_transformer as vits
+import optimizers
 import utils
-
-from models import resnet_cifar, resnet, vision_transformer as vits
-from torchsummary import summary
-
-
-def custom_collate(batch):
-    bs = len(batch[0][0][0])
-    images = [torch.stack([item[0][0][n] for item in batch]) for n in range(bs)]
-    params = [[item[0][1][n] for item in batch] for n in range(bs)]
-    # target = [item[1] for item in batch]
-    return images, params
+from hvs import adversarial_crop_selection
+from methods import SimCLR
+from transforms import SimCLRTransform, custom_collate
 
 
-def main(cfg):
-    dist.init_distributed_mode(cfg) if not dist.is_enabled() else None
-    cudnn.benchmark = True
+GRAD_ACCUM_STEPS = 1
+LOG_FREQ = 0
+MAX_EPOCHS = -1
 
-    print(f"git:\n  {utils.get_sha()}\n")
-    print(OmegaConf.to_yaml(cfg))
 
-    if cfg.arch in vits.__dict__.keys():
-        arch = vits.__dict__[cfg.arch]
-        proj_layer = 3
-        encoder_params = {
-            "img_size": cfg.crop_size,
-            "patch_size": cfg.patch_size,
-            "drop_path_rate": cfg.drop_path_rate,
-            "num_classes": cfg.dim
-        }
-    elif cfg.arch in resnet_cifar.__dict__.keys():
-        arch = resnet_cifar.__dict__[cfg.arch]
-        proj_layer = 2
-        encoder_params = {
-            "num_classes": cfg.dim,
-            "zero_init_residual": True
-        }
-    elif cfg.arch in resnet.__dict__.keys():
-        arch = resnet.__dict__[cfg.arch]
-        proj_layer = 3
-        encoder_params = {
-            "num_classes": cfg.dim,
-            "zero_init_residual": True
-        }
+def main(
+        arch: str = "resnet50",
+        arch_kwargs: dict = None,
+        proj_hidden_dim: int = 2048,
+        out_dim: int = 128,
+        use_bn_in_head: bool = True,
+        optim: str = "lars",
+        lr: float = 0.3,
+        sqrt_lr: bool = False,
+        batch_size: int = 4096,
+        momentum: float = 0.9,
+        weight_decay: float = 1e-4,
+        epochs: int = 100,
+        warmup_epochs: int = 10,
+        use_hvs: bool = False,
+        num_views: int = 2,
+        use_fp16: bool = True,
+        num_workers: int = 8,
+        data_path: str = "path/to/dataset",
+        dataset: str = "imagenet",
+        output_dir: str = ".",
+        log_freq: int = 10,
+        save_ckp_freq: int = 0,
+        grad_accum_steps: int = 1,
+        gpu_id: int = 0,
+        **kwargs,
+):
+    print("Running pretraining ...")
+    utils.print_args(locals())
+
+    global LOG_FREQ, GRAD_ACCUM_STEPS, MAX_EPOCHS
+    GRAD_ACCUM_STEPS = grad_accum_steps
+    LOG_FREQ = log_freq
+    MAX_EPOCHS = epochs
+
+    if arch_kwargs is None:
+        arch_kwargs = {}
+
+    # ============ building network ... ============
+    if arch in torch_models.__dict__.keys():  # torchvision models
+        backbone = torch_models.__dict__[arch](**arch_kwargs)
+    # elif arch in vits.__dict__.keys():  # vision transformer models
+    #     backbone = vits.__dict__[arch](**arch_kwargs)
     else:
-        print(f"Unknown architecture: {cfg.arch}")
-        sys.exit(1)
+        raise NotImplementedError(f"Architecture {arch} not supported")
 
-    model = builder.SimSiam(
-        arch,
-        dim=cfg.dim,
-        pred_dim=cfg.pred_dim,
-        proj_layer=proj_layer,
-        encoder_params=encoder_params
+    model = SimCLR(
+        backbone,
+        proj_hidden_dim=proj_hidden_dim,
+        out_dim=out_dim,
+        use_bn=use_bn_in_head,
     ).cuda()
-
+    # synchronize batch norms (if any)
     if utils.has_batchnorms(model):
-        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    model = nn.parallel.DistributedDataParallel(model, device_ids=[cfg.gpu])
-
-    init_lr = cfg.lr * cfg.batch_size / 256
-
-    criterion = nn.CosineSimilarity(dim=1).cuda()
-
-    if cfg.fix_pred_lr:
-        optim_params = [{'params': model.module.encoder.parameters(), 'fix_lr': False},
-                        {'params': model.module.predictor.parameters(), 'fix_lr': True}]
-    else:
-        optim_params = model.parameters()
-
-    if cfg.optimizer == "sgd":
-        optimizer = torch.optim.SGD(optim_params, init_lr, momentum=cfg.momentum, weight_decay=cfg.weight_decay)
-    elif cfg.optimizer == "adamw":
-        optimizer = torch.optim.AdamW(optim_params, init_lr, weight_decay=cfg.weight_decay)  # to use with ViTs
-
-    fp16 = torch.cuda.amp.GradScaler() if cfg.fp16 else None
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    model = DDP(model, device_ids=[gpu_id])
+    print(f"SimCLR network created with {arch} backbone.")
 
     # ============ preparing data ... ============
-    if cfg.dataset == "CIFAR10":
-        mean, std = data.CIFAR10_DEFAULT_MEAN, data.CIFAR10_DEFAULT_STD
-    else:
-        mean, std = data.IMAGENET_DEFAULT_MEAN, data.IMAGENET_DEFAULT_STD
-
-    transform = custom_transform.TransformParams(
-        crop_size=cfg.crop_size,
-        crop_scale=cfg.crop_scale,
-        blur_prob=cfg.blur_prob,
-        hflip_prob=cfg.hflip_prob,
-        mean=mean,
-        std=std,
-    )
-    multi_crops_transform = data.MultiCropsTransform(transform, cfg.num_crops)
-    dataset, _ = data.make_dataset(cfg.data_path, cfg.dataset, True, multi_crops_transform)
-
-    sampler = DistributedSampler(dataset)
-    cfg.batch_size_per_gpu = cfg.batch_size // dist.get_world_size()
-    loader = DataLoader(
-        dataset,
-        sampler=sampler,
-        batch_size=cfg.batch_size_per_gpu,
-        num_workers=cfg.num_workers,
+    batch_size_per_gpu = batch_size // dist.get_world_size() // GRAD_ACCUM_STEPS
+    train_dataset, _ = data.make_dataset(data_path, dataset, True, SimCLRTransform(num_views=num_views))
+    data_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size_per_gpu,
+        num_workers=num_workers,
         pin_memory=True,
-        drop_last=True,
+        sampler=DistributedSampler(train_dataset),
         collate_fn=custom_collate,
+        drop_last=True,
+    )
+    print(f"Data loaded with {len(train_dataset)} train images.")
+
+    # ============ building loss ... ============
+    ntx_loss = losses.NTXentLoss(temperature=0.1, gather_distributed=dist.is_enabled())
+
+    # ============ building optimizer ... ============
+    if sqrt_lr:
+        init_lr = lr * math.sqrt(batch_size)  # square root scaling rule
+    else:
+        init_lr = lr * batch_size / 256.  # linear scaling rule
+    optimizer = optimizers.configure_optimizer(
+        optim,
+        model.parameters(),
+        lr=init_lr,
+        momentum=momentum,
+        weight_decay=weight_decay,
     )
 
-    select_fn = select_crops.names[cfg.select_fn]
+    # ============ init schedulers ... ============
+    lr_schedule = utils.cosine_scheduler(
+        init_lr,
+        1e-6,
+        epochs,
+        len(data_loader),
+        warmup_epochs=warmup_epochs,
+    )
+
+    # Gradient scaler for mixed precision training
+    scaler = torch.cuda.amp.GradScaler() if use_fp16 else None
+
+    # # ============ preparing logging ... ============
+    logger = utils.CSVLogger(os.path.join(output_dir, "pretrain.csv"))
+
+    print("Preparation done!")
 
     # ============ optionally resume training ... ============
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
     to_restore = {"epoch": 0, "total_time": 0}
     utils.restart_from_checkpoint(
-        os.path.join(cfg.output_dir, "checkpoint.pth"),
+        os.path.join(output_dir, "checkpoint.pth"),
         run_variables=to_restore,
         model=model,
         optimizer=optimizer,
-        fp16=fp16,
+        scaler=scaler,
     )
     start_epoch = to_restore["epoch"]
     total_time = to_restore["total_time"]
 
-    log_dir = os.path.join(cfg.output_dir, "tensorboard")
-    board = SummaryWriter(log_dir) if dist.is_main_process() else None
+    print("Starting training !")
+    for epoch in range(start_epoch, epochs):
+        data_loader.sampler.set_epoch(epoch)  # noqa
 
-    for epoch in range(start_epoch, cfg.epochs):
-        loader.sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, init_lr, epoch, cfg)
-
+        # ============ training one epoch ... ============
         start = time.time()
-        train_stats, metrics = train(loader, model, criterion, optimizer, epoch, cfg, fp16, board, select_fn)
+        train_stats, metrics = \
+            train_one_epoch(model, ntx_loss, data_loader, optimizer, lr_schedule, scaler, epoch, logger, use_hvs)
         total_time += int(time.time() - start)
 
+        # ============ writing logs ... ============
         save_dict = {
             "model": model.state_dict(),
             "optimizer": optimizer.state_dict(),
             "epoch": epoch + 1,
-            "fp16": fp16.state_dict() if fp16 is not None else None,
+            "scaler": scaler.state_dict() if scaler is not None else None,
             "total_time": total_time,
         }
-        utils.save_on_master(save_dict, os.path.join(cfg.output_dir, 'checkpoint.pth'))
-        if cfg.saveckp_freq and epoch and epoch % cfg.saveckp_freq == 0:
-            utils.save_on_master(save_dict, os.path.join(cfg.output_dir, f'checkpoint{epoch:04}.pth'))
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     'epoch': epoch}
+        utils.save_on_master(save_dict, os.path.join(output_dir, 'checkpoint.pth'))
+        if save_ckp_freq and epoch and epoch % save_ckp_freq == 0:
+            utils.save_on_master(save_dict, os.path.join(output_dir, f'checkpoint{epoch:04}.pth'))
+
+        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()}, 'epoch': epoch}
         if dist.is_main_process():
-            with (Path(cfg.output_dir) / "pretrain.log").open("a") as f:
+            with (Path(output_dir) / "pretrain.log").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
-        if dist.is_main_process():
-            with (Path(cfg.output_dir) / "metrics.json").open("a") as f:
+            with (Path(output_dir) / "metrics.json").open("a") as f:
                 f.write(json.dumps(metrics) + "\n")
+        logger.flush()
 
+    logger.close()
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('Training time {}'.format(total_time_str))
+    print(f"Pretraining finished. Total training time: {total_time_str}\n")
 
 
-def train(loader, model, criterion, optimizer, epoch, cfg, fp16, board, select_fn):
-    model.train()
-    metrics = {
-        "epoch": epoch,
-        "loss": [],
-        "lr": [],
-        "selected": [],
-        "params": [],
-        "sample-loss": [],
-    }
+def train_one_epoch(
+        model,
+        criterion,
+        data_loader,
+        optimizer,
+        lr_schedule,
+        scaler,
+        epoch,
+        logger,
+        use_hvs,
+):
+    metrics = defaultdict(list)
+    metrics["epoch"] = epoch
     metric_logger = utils.MetricLogger(delimiter=" ")
-    header = 'Epoch: [{}/{}]'.format(epoch, cfg.epochs)
-    for it, (images, params) in enumerate(metric_logger.log_every(loader, cfg.print_freq, header)):
-        it = len(loader) * epoch + it  # global training iteration
+    header = 'Epoch: [{}/{}]'.format(epoch, MAX_EPOCHS)
 
-        images = [im.cuda(non_blocking=True) for im in images]
+    for it, batch in enumerate(metric_logger.log_every(data_loader, 100, header)):
+        it = len(data_loader) * epoch + it  # global training iteration
 
-        x1, x2, selected, sample_loss = select_fn(images, model, fp16)
+        for i, param_group in enumerate(optimizer.param_groups):  # adjust learning rate
+            param_group["lr"] = lr_schedule[it]
 
-        with torch.cuda.amp.autocast(fp16 is not None):
-            p1, p2, z1, z2 = model(x1=x1, x2=x2)
-            loss = -(criterion(p1, z2).mean() + criterion(p2, z1).mean()) * 0.5
+        images, params, _ = batch
+        images = [img.cuda(non_blocking=True) for img in images]
 
-        optimizer.zero_grad()
-        if fp16 is None:
-            loss.backward()
-            if cfg.clip_grad:
-                _ = utils.clip_gradients(model, cfg.clip_grad)
-            optimizer.step()
-        else:
-            fp16.scale(loss).backward()
-            if cfg.clip_grad:
-                fp16.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
-                _ = utils.clip_gradients(model, cfg.clip_grad)
+        # hard view selection
+        if use_hvs:
+            images, selection, _ = adversarial_crop_selection(images, model, criterion)
 
-            fp16.step(optimizer)
-            fp16.update()
+        # regular training
+        with torch.cuda.amp.autocast(scaler is not None):
+            z1, z2 = model(torch.cat(images)).chunk(len(images))
+            loss = criterion(z1, z2)
+            loss /= GRAD_ACCUM_STEPS
 
-        # logging
-        torch.cuda.synchronize()
-        metric_logger.update(loss=loss.item())
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        loss.backward() if scaler is None else scaler.scale(loss).backward()
 
-        metrics["loss"].append(loss.item())
-        metrics["lr"].append(optimizer.param_groups[0]["lr"])
-        if cfg.use_adv_metric and it % cfg.adv_metric_freq == 0:
-            metrics["selected"].append(selected.tolist())
-            metrics["params"].append(params)
-            metrics["sample-loss"].append(sample_loss.tolist())
+        if not (it + 1) % GRAD_ACCUM_STEPS:
+            if scaler:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
+            optimizer.zero_grad()
 
-        if dist.is_main_process() and it % cfg.logger_freq == 0:
-            board.add_scalar("training loss", loss.item(), it)
-            board.add_scalar("training lr", optimizer.param_groups[0]["lr"], it)
+            # logging
+            torch.cuda.synchronize()
+            metric_logger.update(loss=loss.item() * GRAD_ACCUM_STEPS)
+            metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+
+            step = (it + 1) // GRAD_ACCUM_STEPS
+            logger.log("loss", loss.item(), step)
+            logger.log("lr", optimizer.param_groups[0]["lr"], step)
+            if not step % LOG_FREQ:
+                metrics["step"].append(it)
+                # metrics["params"].append(params.tolist())
 
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}, metrics
 
 
-def adjust_learning_rate(optimizer, init_lr, epoch, args):
-    """Decay the learning rate based on schedule"""
-    cur_lr = init_lr * 0.5 * (1. + math.cos(math.pi * epoch / args.epochs))
-    for param_group in optimizer.param_groups:
-        if 'fix_lr' in param_group and param_group['fix_lr']:
-            param_group['lr'] = init_lr
-        else:
-            param_group['lr'] = cur_lr
-
-
-def get_args_parser():
-    p = argparse.ArgumentParser("SimSiam", description='Pytorch Pretraining on ImageNet', add_help=False)
-    p.add_argument('--dataset', type=str, default="ImageNet",
-                   help='Specify dataset (default: ImageNet)')
-    p.add_argument('--data_path', type=str,
-                   help='(root) path to dataset')
-    p.add_argument('-a', '--arch', type=str,
-                   choices=["vit_tiny", "vit_small", "vit_base",
-                            "resnet18", "resnet34", "resnet50", "resnet101", "resnet152",
-                            "resnet18_cifar", "resnet34_cifar", "resnet50_cifar", "resnet101_cifar", "resnet152_cifar"],
-                   help="Name of architecture to train (default: resnet50)")
-    p.add_argument('--epochs', type=int,
-                   help='number of total epochs to run (default: 100)')
-    p.add_argument('-b', '--batch_size', type=int,
-                   help='total batch-size (default: 512)')
-    p.add_argument('--lr', type=float,
-                   help='initial (base) learning rate (default: 0.05)')
-    p.add_argument('--momentum', type=float,
-                   help='momentum of SGD solver (default: 0.9)')
-    p.add_argument('--wd', '--weight_decay', dest="weight_decay", type=float,
-                   help='weight decay (default: 1e-4)')
-    p.add_argument('--optimizer', default='sgd', type=str,
-                        choices=['adamw', 'sgd'],
-                        help="""Type of optimizer. We recommend using adamw with ViTs.""")
-
-    # simsiam specific parameters:
-    p.add_argument('--dim', type=int,
-                   help='feature dimension (default: 2048)')
-    p.add_argument('--pred_dim', type=int,
-                   help='hidden dimension of the predictor (default: 512)')
-    p.add_argument('--fix_pred_lr', type=utils.bool_flag,
-                   help='Fix learning rate for the predictor (default: True)')
-
-    # parameters for VitS
-    p.add_argument('--patch_size', type=int, default=16,
-                   help="Size in pixels of input square patches - default 16 (for 16x16 patches).")
-    p.add_argument('--drop_path_rate', type=float,
-                   help="stochastic depth rate. (default: 0.1)")
-
-    # data augmentation parameters:
-    p.add_argument("--crop_size", type=int,
-                   help="Size of crops (default: 224)")
-    p.add_argument("--crop_scale", type=float, nargs='+',
-                   help="Scale range of the crops, relative to original image (default: 0.2 1.)")
-    p.add_argument("--blur_prob", type=float,
-                   help="Blur probability (default: 0.5)")
-    p.add_argument("--hflip_prob", type=float,
-                   help="Horizontal-Flip probability (default: 0.5)")
-
-    # MinSim parameters:
-    p.add_argument("--num_crops", default=2, type=int, help="Number of crops")
-    p.add_argument("--select_fn", default="identity", type=str, choices=select_crops.names)
-
+def get_pretrain_args_parser():
+    p = argparse.ArgumentParser("SSL Pretraining")
+    # Model parameters
+    p.add_argument("--arch", default="resnet50", type=str, help="model architecture")
+    p.add_argument("--arch-kwargs", default=None, type=utils.arg_dict, help="architecture kwargs")
+    p.add_argument("--proj-hidden-dim", default=2048, type=int, help="hidden dimension of projection head")
+    p.add_argument("--out-dim", default=128, type=int, help="output dimension of projection head")
+    p.add_argument("--use-bn-in-head", default=True, type=utils.bool_flag,
+                   help="whether to use batch norm in projection head")
+    # Optimization parameters
+    p.add_argument("--batch-size", default=4096, type=int, help="batch size")
+    p.add_argument("--optim", default="lars", type=str, help="optimizer")
+    p.add_argument("--lr", default=0.3, type=float, help="learning rate")
+    p.add_argument("--sqrt-lr", default=False, type=utils.bool_flag, help="scale lr by square root of batch size")
+    p.add_argument("--momentum", default=0.9, type=float, help="momentum")
+    p.add_argument("--weight-decay", default=1e-4, type=float, help="weight decay")
+    p.add_argument("--epochs", default=100, type=int, help="number of epochs")
+    p.add_argument("--warmup-epochs", default=10, type=int, help="number of warmup epochs")
+    p.add_argument("--grad-accum-steps", default=1, type=int, help="gradient accumulation steps")
+    p.add_argument("--use-fp16", default=True, type=utils.bool_flag, help="use mixed precision training")
+    # ACS parameters
+    p.add_argument("--use-hvs", default=False, type=utils.bool_flag, help="whether to use hard view selection")
+    p.add_argument("--num_views", default=2, type=int, help="number of views")
     # Misc
-    p.add_argument('--fp16', default=True, type=utils.bool_flag,
-                   help="Whether or not to use half precision for training. (default: True)")
-    p.add_argument('--output_dir', type=str,
-                   help='Path to save logs and checkpoints.')
-    p.add_argument('--saveckp_freq', default=0, type=int,
-                   help='Save checkpoint every x epochs.')
-    p.add_argument('--seed', default=0, type=int,
-                   help='Random seed.')
-    p.add_argument('--num_workers', default=8, type=int,
-                   help='Number of data loading workers per GPU.')
-    p.add_argument("--dist_backend", default="nccl", type=str,
-                   help="distributed backend (default: nccl)")
-    p.add_argument("--dist_url", default="env://", type=str,
-                   help="url used to set up distributed training")
-    p.add_argument("--print_freq", default=10, type=int,
-                   help="Print progress every x iterations (default: 10)")
-    p.add_argument("--logger_freq", default=50, type=int,
-                   help="Log progress every x iterations to tensorboard (default: 50)")
-    p.add_argument("--use_adv_metric", default=True, type=utils.bool_flag,
-                   help="Log advanced metrics: transforms params, crop selection, sample-loss, ... (default: False)")
-    p.add_argument("--adv_metric_freq", default=10, type=int,
-                   help="Log advanced metrics every x iterations (default: 100)")
-    p.add_argument('--clip_grad', type=float, default=0.0, help="""Maximal parameter
-        gradient norm if using gradient clipping. Clipping with norm .3 ~ 1.0 can
-        help optimization for larger ViT architectures. 0 for disabling.""")
-
+    p.add_argument("--dataset", default="imagenet", type=str, help="dataset name")
+    p.add_argument("--data-path", default=None, type=str, help="path to data")
+    p.add_argument("--num-workers", default=8, type=int, help="number of workers")
+    p.add_argument("--output-dir", default=".", type=str, help="path to output directory")
+    p.add_argument("--log-freq", default=100, type=int, help="logging frequency")
+    p.add_argument("--save-ckp-freq", default=0, type=int, help="save checkpoint frequency")
+    p.add_argument("--seed", default=0, type=int, help="random seed.")
     return p
 
 
-if __name__ == '__main__':
-    parser = get_args_parser()
+if __name__ == "__main__":
+    parser = get_pretrain_args_parser()
     args = parser.parse_args()
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    main(args)
+
+    local_rank, rank, world_size = dist.setup()
+    main(
+        **vars(args),
+        gpu_id=local_rank
+    )

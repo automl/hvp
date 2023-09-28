@@ -8,10 +8,9 @@ from collections import defaultdict, deque
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.distributed
-from models.vision_transformer import VisionTransformer
 
-from . import distributed as dist
+import distributed as dist
+from utils.csv_logger import CSVLogger
 
 
 def fix_random_seeds(seed=0):
@@ -253,61 +252,52 @@ class MetricLogger(object):
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
                 if torch.cuda.is_available():
                     print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
+                        i, len(iterable),
+                        eta=eta_string,
                         meters=str(self),
-                        time=str(iter_time), data=str(data_time),
+                        time=str(iter_time),
+                        data=str(data_time),
                         memory=torch.cuda.max_memory_allocated() / MB))
                 else:
                     print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
+                        i, len(iterable),
+                        eta=eta_string,
                         meters=str(self),
-                        time=str(iter_time), data=str(data_time)))
+                        time=str(iter_time),
+                        data=str(data_time)))
             i += 1
             end = time.time()
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        print('{} Total time: {} ({:.6f} s / it)'.format(
-            header, total_time_str, total_time / len(iterable)))
+        print('{} Total time: {} ({:.6f} s / it)'.format(header, total_time_str, total_time / len(iterable)))
 
 
-def load_pretrained_weights(model, pretrained_weights, checkpoint_key):
+def load_pretrained_weights(model, pretrained_weights, checkpoint_key, abort_if_missing=True):
     if os.path.isfile(pretrained_weights):
         state_dict = torch.load(pretrained_weights, map_location="cpu")
         if checkpoint_key is not None and checkpoint_key in state_dict:
-            print(f"Take key {checkpoint_key} in provided checkpoint dict")
+            print(f"Take key '{checkpoint_key}' in provided checkpoint dict")
             state_dict = state_dict[checkpoint_key]
-        for k in list(state_dict.keys()):
-            # retain only encoder up to before the embedding layer
-            if k.startswith('module.encoder') and not k.startswith('module.encoder.fc'):
-                # remove prefix
-                state_dict[k[len("module.encoder."):]] = state_dict[k]
-            # delete renamed or unused k
-            del state_dict[k]
-
+        # remove `module.` prefix
+        state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+        # remove `backbone.` prefix
+        state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
         msg = model.load_state_dict(state_dict, strict=False)
-        # commented out due to taking linear_eval from DINO (which uses linear classifier class
-        #if not isinstance(model, VisionTransformer):
-        #    assert set(msg.missing_keys) == {"fc.weight", "fc.bias"}
         print('Pretrained weights found at {} and loaded with msg: {}'.format(pretrained_weights, msg))
     else:
+        if abort_if_missing:
+            raise FileNotFoundError("=> no checkpoint found at '{}'".format(pretrained_weights))
         print("=> no checkpoint found at '{}'".format(pretrained_weights))
 
 
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k"""
-    with torch.no_grad():
-        maxk = max(topk)
-        batch_size = target.size(0)
-
-        _, pred = output.topk(maxk, 1, True, True)
-        pred = pred.t()
-        correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-        res = []
-        for k in topk:
-            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
-            res.append(correct_k.mul_(100.0 / batch_size))
-        return res
+    maxk = max(topk)
+    batch_size = target.size(0)
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.reshape(1, -1).expand_as(pred))
+    return [correct[:k].reshape(-1).float().sum(0) * 100. / batch_size for k in topk]
 
 
 def bool_flag(s):
@@ -324,24 +314,58 @@ def bool_flag(s):
         raise argparse.ArgumentTypeError("invalid value for a boolean flag")
 
 
-def clip_gradients(model, clip):
-    norms = []
-    for name, p in model.named_parameters():
-        if p.grad is not None:
-            param_norm = p.grad.data.norm(2)
-            norms.append(param_norm.item())
-            clip_coef = clip / (param_norm + 1e-6)
-            if clip_coef < 1:
-                p.grad.data.mul_(clip_coef)
-    return norms
+def arg_dict(x):
+    """
+    Parse dictionary arguments from the command line.
+    Comma-separated string of key:value pairs.
+    example:
+        --arg zero_init_residual:True,patch_size:16
+    """
+    out = {}
+    if x is not None:
+        for item in x.split(','):
+            key, value = item.split(':')
+            out[key] = eval(value)
+    return out
 
 
-def find_free_port():
-    import socket
-    from contextlib import closing
+def get_params_groups(model):
+    regularized = []
+    not_regularized = []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        # we do not regularize biases nor Norm parameters
+        if name.endswith(".bias") or len(param.shape) == 1:
+            not_regularized.append(param)
+        else:
+            regularized.append(param)
+    return [{'params': regularized}, {'params': not_regularized, 'weight_decay': 0.}]
 
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(("", 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
 
+def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epochs=0, start_warmup_value=0):
+    warmup_schedule = np.array([])
+    warmup_iters = warmup_epochs * niter_per_ep
+    if warmup_epochs > 0:
+        warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_iters)
+
+    iters = np.arange(epochs * niter_per_ep - warmup_iters)
+    schedule = final_value + 0.5 * (base_value - final_value) * (1 + np.cos(np.pi * iters / len(iters)))
+
+    schedule = np.concatenate((warmup_schedule, schedule))
+    assert len(schedule) == epochs * niter_per_ep
+    return schedule
+
+
+def cancel_gradients_last_layer(epoch, model, freeze_last_layer):
+    if epoch >= freeze_last_layer:
+        return
+    for n, p in model.named_parameters():
+        if "last_layer" in n:
+            p.grad = None
+
+
+def print_args(args):
+    print("Parameters:")
+    for k, v in sorted(args.items()):
+        print("\t{}: {}".format(k, v))
