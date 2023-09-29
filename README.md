@@ -9,6 +9,6 @@ Other branches available here:
 ## Introduction
 
 ## Download Model Files
-- SimSiam
-- DINO
-- SimCLR
+- [SimSiam Models](https://shorturl.at/rxCKO)
+- [DINO Models]():
+- [SimCLR Models]():
