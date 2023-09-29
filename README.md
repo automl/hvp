@@ -1,7 +1,6 @@
-# hard-view-selection
-Hard View Selection for Contrastive Learning
+# Hard View Selection for Contrastive Learning
 
-Other branches available here:
+Other branches are available here (required for double-blind submission):
 - main (simsiam): https://anonymous.4open.science/r/hard-view-selection/
 - dino: https://anonymous.4open.science/r/hard-view-selection-dino/
 - simclr: https://anonymous.4open.science/r/hard-view-selection-simclr/
