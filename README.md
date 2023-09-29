@@ -10,5 +10,5 @@ Other branches available here:
 
 ## Download Model Files
 - [SimSiam Models](https://shorturl.at/rxCKO)
-- [DINO Models](https://shorturl.at/ceA38):
-- [SimCLR Models](https://shorturl.at/dBDV7):
+- [DINO Models](https://shorturl.at/ceA38)
+- [SimCLR Models](https://shorturl.at/dBDV7)
