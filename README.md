@@ -11,4 +11,4 @@ Other branches are available here (required for double-blind submission):
 (include pretraining, linear evaluation and finetuning checkpoints)
 - [SimSiam Models](https://shorturl.at/rxCKO) (20G)
 - [DINO Models](https://shorturl.at/ceA38) (45G)
-- [SimCLR Models](https://shorturl.at/dBDV7) (20G)
+- [SimCLR Models](https://shorturl.at/dBDV7) (66G)
