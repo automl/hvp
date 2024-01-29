@@ -2,7 +2,7 @@
 
 Other branches are available here (required for double-blind submission):
 - [SimSiam Branch (main)](https://anonymous.4open.science/r/pretraining-hard-views/)
-- [DINO branch](https://anonymous.4open.science/r/hard-view-selection-dino/)
+- [DINO branch](https://anonymous.4open.science/r/pretraining-hard-views-dino/)
 - [SimCLR Branch](https://anonymous.4open.science/r/pretraining-hard-views-simclr/)
 
 ## Introduction
