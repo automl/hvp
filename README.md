@@ -1,7 +1,7 @@
 # Beyond Random Augmentations: Pretraining with Hard Views
 
 Other branches are available here (required for double-blind submission):
-- [SimSiam Branch (main)](https://anonymous.4open.science/r/hard-view-selection/)
+- [SimSiam Branch (main)](https://anonymous.4open.science/r/pretraining-hard-views/)
 - [DINO branch](https://anonymous.4open.science/r/hard-view-selection-dino/)
 - [SimCLR Branch](https://anonymous.4open.science/r/pretraining-hard-views-simclr/)
 
