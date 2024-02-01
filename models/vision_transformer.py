@@ -1,10 +1,22 @@
-import math
-from functools import partial
+# Copyright (c) ByteDance, Inc. and its affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
 
+"""
+Mostly copy-paste from DINO and timm library:
+https://github.com/facebookresearch/dino
+https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
+"""
+
+import math
 import torch
 import torch.nn as nn
 
-from torch.nn.init import trunc_normal_
+from functools import partial
+from utils import trunc_normal_
+from timm.models.registry import register_model
 
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
@@ -21,6 +33,7 @@ def drop_path(x, drop_prob: float = 0., training: bool = False):
 class DropPath(nn.Module):
     """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
     """
+
     def __init__(self, drop_prob=None):
         super(DropPath, self).__init__()
         self.drop_prob = drop_prob
@@ -76,8 +89,8 @@ class Attention(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0.,
+                 attn_drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, init_values=0):
         super().__init__()
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
@@ -87,18 +100,29 @@ class Block(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
+        if init_values > 0:
+            self.gamma_1 = nn.Parameter(init_values * torch.ones((dim)), requires_grad=True)
+            self.gamma_2 = nn.Parameter(init_values * torch.ones((dim)), requires_grad=True)
+        else:
+            self.gamma_1, self.gamma_2 = None, None
+
     def forward(self, x, return_attention=False):
         y, attn = self.attn(self.norm1(x))
         if return_attention:
             return attn
-        x = x + self.drop_path(y)
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        if self.gamma_1 is None:
+            x = x + self.drop_path(y)
+            x = x + self.drop_path(self.mlp(self.norm2(x)))
+        else:
+            x = x + self.drop_path(self.gamma_1 * y)
+            x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
         return x
 
 
 class PatchEmbed(nn.Module):
     """ Image to Patch Embedding
     """
+
     def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768):
         super().__init__()
         num_patches = (img_size // patch_size) * (img_size // patch_size)
@@ -110,20 +134,22 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x):
         B, C, H, W = x.shape
-        x = self.proj(x).flatten(2).transpose(1, 2)
-        return x
+        return self.proj(x)
 
 
 class VisionTransformer(nn.Module):
     """ Vision Transformer """
-    def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
+
+    def __init__(self, img_size=[224], patch_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
-                 drop_path_rate=0., norm_layer=nn.LayerNorm, **kwargs):
+                 drop_path_rate=0., norm_layer=partial(nn.LayerNorm, eps=1e-6), return_all_tokens=False,
+                 init_values=0, use_mean_pooling=False, masked_im_modeling=False):
         super().__init__()
         self.num_features = self.embed_dim = embed_dim
+        self.return_all_tokens = return_all_tokens
 
         self.patch_embed = PatchEmbed(
-            img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
+            img_size=img_size[0], patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         num_patches = self.patch_embed.num_patches
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
@@ -134,16 +160,23 @@ class VisionTransformer(nn.Module):
         self.blocks = nn.ModuleList([
             Block(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer)
+                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
+                init_values=init_values)
             for i in range(depth)])
-        self.norm = norm_layer(embed_dim)
 
+        self.norm = nn.Identity() if use_mean_pooling else norm_layer(embed_dim)
+        self.fc_norm = norm_layer(embed_dim) if use_mean_pooling else None
         # Classifier head
-        self.fc = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
         trunc_normal_(self.pos_embed, std=.02)
         trunc_normal_(self.cls_token, std=.02)
         self.apply(self._init_weights)
+
+        # masked image modeling
+        self.masked_im_modeling = masked_im_modeling
+        if masked_im_modeling:
+            self.masked_embed = nn.Parameter(torch.zeros(1, embed_dim))
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -176,9 +209,15 @@ class VisionTransformer(nn.Module):
         patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
         return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1)
 
-    def prepare_tokens(self, x):
+    def prepare_tokens(self, x, mask=None):
         B, nc, w, h = x.shape
-        x = self.patch_embed(x)  # patch linear embedding
+        # patch linear embedding
+        x = self.patch_embed(x)
+
+        # mask image modeling
+        if mask is not None:
+            x = self.mask_model(x, mask)
+        x = x.flatten(2).transpose(1, 2)
 
         # add the [CLS] token to the embed patch tokens
         cls_tokens = self.cls_token.expand(B, -1, -1)
@@ -189,11 +228,25 @@ class VisionTransformer(nn.Module):
 
         return self.pos_drop(x)
 
-    def forward(self, x):
-        x = self.prepare_tokens(x)
+    def forward(self, x, return_all_tokens=None, mask=None):
+        # mim
+        if self.masked_im_modeling:
+            assert mask is not None
+            x = self.prepare_tokens(x, mask=mask)
+        else:
+            x = self.prepare_tokens(x)
+
         for blk in self.blocks:
             x = blk(x)
+
         x = self.norm(x)
+        if self.fc_norm is not None:
+            x[:, 0] = self.fc_norm(x[:, 1:, :].mean(1))
+
+        return_all_tokens = self.return_all_tokens if \
+            return_all_tokens is None else return_all_tokens
+        if return_all_tokens:
+            return x
         return x[:, 0]
 
     def get_last_selfattention(self, x):
@@ -215,23 +268,37 @@ class VisionTransformer(nn.Module):
                 output.append(self.norm(x))
         return output
 
+    def get_num_layers(self):
+        return len(self.blocks)
+
+    def mask_model(self, x, mask):
+        x.permute(0, 2, 3, 1)[mask, :] = self.masked_embed.to(x.dtype)
+        return x
+
 
 def vit_tiny(patch_size=16, **kwargs):
     model = VisionTransformer(
         patch_size=patch_size, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4,
-        qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+        qkv_bias=True, **kwargs)
     return model
 
 
 def vit_small(patch_size=16, **kwargs):
     model = VisionTransformer(
         patch_size=patch_size, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4,
-        qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+        qkv_bias=True, **kwargs)
     return model
 
 
 def vit_base(patch_size=16, **kwargs):
     model = VisionTransformer(
         patch_size=patch_size, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
-        qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+        qkv_bias=True, **kwargs)
+    return model
+
+
+def vit_large(patch_size=16, **kwargs):
+    model = VisionTransformer(
+        patch_size=patch_size, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
+        qkv_bias=True, **kwargs)
     return model
