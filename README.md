@@ -8,7 +8,7 @@ Other branches are available here (required for double-blind submission):
 ## Introduction
 
 ## Download Model Files
-(include pretraining, linear evaluation and finetuning checkpoints)
+(include pretraining, linear evaluation and finetuning checkpoints for both vanilla and hvp models)
 - [DINO models](https://shorturl.at/ceA38) (45G)
 - [iBOT models](https://shorturl.at/pGS28) (11G)
 - [SimSiam models](https://shorturl.at/rxCKO) (20G)
