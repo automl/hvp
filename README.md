@@ -9,6 +9,7 @@ Other branches are available here (required for double-blind submission):
 
 ## Download Model Files
 (include pretraining, linear evaluation and finetuning checkpoints)
-- [SimSiam Models](https://shorturl.at/rxCKO) (20G)
-- [DINO Models](https://shorturl.at/ceA38) (45G)
-- [SimCLR Models](https://shorturl.at/dBDV7) (66G)
+- [DINO models](https://shorturl.at/ceA38) (45G)
+- [iBOT models](https://shorturl.at/pGS28) (11G)
+- [SimSiam models](https://shorturl.at/rxCKO) (20G)
+- [SimCLR models](https://shorturl.at/dBDV7) (66G)
