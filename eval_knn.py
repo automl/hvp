@@ -25,7 +25,6 @@ import utils
 from models import resnet, resnet_cifar, vision_transformer as vits
 from utils import distributed as dist, optimizers
 import data
-from tqdm import tqdm
 
 
 def extract_feature_pipeline(cfg):
@@ -78,10 +77,8 @@ def extract_feature_pipeline(cfg):
         )
     elif cfg.arch in resnet_cifar.__dict__.keys():
         model = resnet_cifar.__dict__[cfg.arch](num_classes=0)
-        model.fc = nn.Identity()
     elif cfg.arch in resnet.__dict__.keys():
         model = resnet.__dict__[cfg.arch](num_classes=0)
-        model.fc = nn.Identity()
     else:
         print(f"Unknown architecture: {cfg.arch}")
         sys.exit(1)
@@ -165,7 +162,7 @@ def knn_classifier(train_features, train_labels, test_features, test_labels, k, 
     num_test_images, num_chunks = test_labels.shape[0], 100
     imgs_per_chunk = num_test_images // num_chunks
     retrieval_one_hot = torch.zeros(k, num_classes).to(train_features.device)
-    for idx in tqdm(range(0, num_test_images, imgs_per_chunk)):
+    for idx in range(0, num_test_images, imgs_per_chunk):
         # get the features for test images
         features = test_features[
             idx : min((idx + imgs_per_chunk), num_test_images), :
