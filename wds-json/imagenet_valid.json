@@ -1,0 +1,774 @@
+{
+  "__kind__": "wids-shard-index-v1",
+  "wids_version": 1,
+  "shardlist": [
+    {
+      "url": "00000.tar",
+      "md5sum": "a4b347f2ff002a0f363553edbcd6517d",
+      "nsamples": 391,
+      "filesize": 75622400
+    },
+    {
+      "url": "00001.tar",
+      "md5sum": "8a94d59ec36a49905e4b6d9fa3697bce",
+      "nsamples": 390,
+      "filesize": 79216640
+    },
+    {
+      "url": "00002.tar",
+      "md5sum": "d206b33feb8617c23bba7c9046235bc8",
+      "nsamples": 391,
+      "filesize": 71915520
+    },
+    {
+      "url": "00003.tar",
+      "md5sum": "db6d125ab3ee6d1517a4c695d5a5cd89",
+      "nsamples": 391,
+      "filesize": 80107520
+    },
+    {
+      "url": "00004.tar",
+      "md5sum": "a69068ffccfce22f933beea1f6ef31d9",
+      "nsamples": 391,
+      "filesize": 72355840
+    },
+    {
+      "url": "00005.tar",
+      "md5sum": "8cdc94f01add14bd06066dbb547e44c7",
+      "nsamples": 391,
+      "filesize": 72325120
+    },
+    {
+      "url": "00006.tar",
+      "md5sum": "a39d4ba52449ae4113c95228b47702b6",
+      "nsamples": 391,
+      "filesize": 79462400
+    },
+    {
+      "url": "00007.tar",
+      "md5sum": "d971b66e707d4af9a8f524fe5aa46623",
+      "nsamples": 391,
+      "filesize": 72161280
+    },
+    {
+      "url": "00008.tar",
+      "md5sum": "8054c4dead4d9054b0d5c6a0da2eefbd",
+      "nsamples": 391,
+      "filesize": 73021440
+    },
+    {
+      "url": "00009.tar",
+      "md5sum": "3e31ec17f423bc60032d181677571979",
+      "nsamples": 391,
+      "filesize": 70850560
+    },
+    {
+      "url": "00010.tar",
+      "md5sum": "73e1e82f86fd0d47a47d0aaf0b89e9a9",
+      "nsamples": 390,
+      "filesize": 76881920
+    },
+    {
+      "url": "00011.tar",
+      "md5sum": "158ea669534c1e2fc2a7d18bc4cebd26",
+      "nsamples": 390,
+      "filesize": 70952960
+    },
+    {
+      "url": "00012.tar",
+      "md5sum": "8aae31eae3db2993690229cfb13d91f2",
+      "nsamples": 391,
+      "filesize": 69150720
+    },
+    {
+      "url": "00013.tar",
+      "md5sum": "8e5bb2b255df44c2a2684333927e6dc8",
+      "nsamples": 390,
+      "filesize": 71843840
+    },
+    {
+      "url": "00014.tar",
+      "md5sum": "b769b1d2541f4b04543f50f5ddb87591",
+      "nsamples": 390,
+      "filesize": 73000960
+    },
+    {
+      "url": "00015.tar",
+      "md5sum": "40ebffb5c68735054ec09cec3f489bb7",
+      "nsamples": 391,
+      "filesize": 73789440
+    },
+    {
+      "url": "00016.tar",
+      "md5sum": "2e407889dbf89368abec52d73ba21b3e",
+      "nsamples": 390,
+      "filesize": 78561280
+    },
+    {
+      "url": "00017.tar",
+      "md5sum": "8eb9325a1dafcbaf5dfee518a41d39d2",
+      "nsamples": 390,
+      "filesize": 70492160
+    },
+    {
+      "url": "00018.tar",
+      "md5sum": "719324730cc1c3bc321c9060dd8f3d30",
+      "nsamples": 390,
+      "filesize": 76421120
+    },
+    {
+      "url": "00019.tar",
+      "md5sum": "397e3482309ebd3f9e90d7db4fba54fc",
+      "nsamples": 391,
+      "filesize": 77967360
+    },
+    {
+      "url": "00020.tar",
+      "md5sum": "9d933ae7bf226aa4e8ce25ad2385a301",
+      "nsamples": 391,
+      "filesize": 70871040
+    },
+    {
+      "url": "00021.tar",
+      "md5sum": "ca83fa1c395554c8f1721352fe50cddc",
+      "nsamples": 391,
+      "filesize": 70891520
+    },
+    {
+      "url": "00022.tar",
+      "md5sum": "077224b7dee34f65370906ac244a8172",
+      "nsamples": 391,
+      "filesize": 81305600
+    },
+    {
+      "url": "00023.tar",
+      "md5sum": "2504c1d883423a8f2b10c23dd261e176",
+      "nsamples": 391,
+      "filesize": 73984000
+    },
+    {
+      "url": "00024.tar",
+      "md5sum": "5b96bbf6d86bae7f2eecb85067a0b3b1",
+      "nsamples": 391,
+      "filesize": 73062400
+    },
+    {
+      "url": "00025.tar",
+      "md5sum": "f5d9ab7a44a0ab10f4300af35a139b44",
+      "nsamples": 391,
+      "filesize": 83404800
+    },
+    {
+      "url": "00026.tar",
+      "md5sum": "a1b1c1c19e1a41665b3be438334f8cc8",
+      "nsamples": 390,
+      "filesize": 72366080
+    },
+    {
+      "url": "00027.tar",
+      "md5sum": "bb4effd84d11967e6242826cef92ec07",
+      "nsamples": 390,
+      "filesize": 82391040
+    },
+    {
+      "url": "00028.tar",
+      "md5sum": "1cccd551923f7137b637f6f3891aa0e4",
+      "nsamples": 391,
+      "filesize": 73246720
+    },
+    {
+      "url": "00029.tar",
+      "md5sum": "771901db3f76c331b6005835e32d2eb9",
+      "nsamples": 391,
+      "filesize": 74465280
+    },
+    {
+      "url": "00030.tar",
+      "md5sum": "cbe6aab08527034ca8da12ed6dc1940f",
+      "nsamples": 391,
+      "filesize": 68710400
+    },
+    {
+      "url": "00031.tar",
+      "md5sum": "dedecc9ac2facf0a23adbbd44354f115",
+      "nsamples": 391,
+      "filesize": 70133760
+    },
+    {
+      "url": "00032.tar",
+      "md5sum": "16ae4eed3ede59f2e950e1f08092ac0e",
+      "nsamples": 390,
+      "filesize": 74424320
+    },
+    {
+      "url": "00033.tar",
+      "md5sum": "fafd98b6e2c8fe0de23e658e61686b82",
+      "nsamples": 391,
+      "filesize": 67635200
+    },
+    {
+      "url": "00034.tar",
+      "md5sum": "a6920b27691816dc1effbaa3f3857dd1",
+      "nsamples": 391,
+      "filesize": 76707840
+    },
+    {
+      "url": "00035.tar",
+      "md5sum": "a60a8283bf86e14770b53d163ca4944c",
+      "nsamples": 391,
+      "filesize": 72765440
+    },
+    {
+      "url": "00036.tar",
+      "md5sum": "e51f9d7269beeff2428a7ab374006b57",
+      "nsamples": 390,
+      "filesize": 73973760
+    },
+    {
+      "url": "00037.tar",
+      "md5sum": "8c214158a380cceb5318c885318d9a03",
+      "nsamples": 390,
+      "filesize": 74629120
+    },
+    {
+      "url": "00038.tar",
+      "md5sum": "5f6136d0a8bb403ec488011f0f521ff3",
+      "nsamples": 391,
+      "filesize": 80855040
+    },
+    {
+      "url": "00039.tar",
+      "md5sum": "db8ef34fb9b9f5b557e40e297c89e714",
+      "nsamples": 391,
+      "filesize": 83456000
+    },
+    {
+      "url": "00040.tar",
+      "md5sum": "359994975b207c76ceb910eaa29aea66",
+      "nsamples": 390,
+      "filesize": 74670080
+    },
+    {
+      "url": "00041.tar",
+      "md5sum": "db4054f1cf8545eeb5fc5537e8afc962",
+      "nsamples": 391,
+      "filesize": 79175680
+    },
+    {
+      "url": "00042.tar",
+      "md5sum": "fe28dface139397cb6bae7b5bce80b59",
+      "nsamples": 390,
+      "filesize": 76800000
+    },
+    {
+      "url": "00043.tar",
+      "md5sum": "6754b54f3637f41c5d20badebd652a9d",
+      "nsamples": 391,
+      "filesize": 71024640
+    },
+    {
+      "url": "00044.tar",
+      "md5sum": "1fa0abe0ff0d96f0ed132d7b7359ef04",
+      "nsamples": 390,
+      "filesize": 69529600
+    },
+    {
+      "url": "00045.tar",
+      "md5sum": "ca9e5c03f4f61dcc8c3c04bd47b5bec2",
+      "nsamples": 391,
+      "filesize": 71884800
+    },
+    {
+      "url": "00046.tar",
+      "md5sum": "4fb07963b223ba6d4d80fad2c4a49d39",
+      "nsamples": 390,
+      "filesize": 73625600
+    },
+    {
+      "url": "00047.tar",
+      "md5sum": "57f65e8643af789d47a366a88457fd77",
+      "nsamples": 390,
+      "filesize": 70461440
+    },
+    {
+      "url": "00048.tar",
+      "md5sum": "6568657179d8ae72aec28b1139a07094",
+      "nsamples": 391,
+      "filesize": 74547200
+    },
+    {
+      "url": "00049.tar",
+      "md5sum": "859d4e3eaabfb0a08b7e61a12121dc01",
+      "nsamples": 390,
+      "filesize": 70830080
+    },
+    {
+      "url": "00050.tar",
+      "md5sum": "3b963da57ded12d7adc78593949c17e9",
+      "nsamples": 391,
+      "filesize": 71864320
+    },
+    {
+      "url": "00051.tar",
+      "md5sum": "9acc49e0174efd0a0201b965a639180a",
+      "nsamples": 390,
+      "filesize": 71997440
+    },
+    {
+      "url": "00052.tar",
+      "md5sum": "792bd99136abbd22c6c1c40c54e6b38c",
+      "nsamples": 390,
+      "filesize": 72816640
+    },
+    {
+      "url": "00053.tar",
+      "md5sum": "6c6537a0c96db70c26748bfaa5f02692",
+      "nsamples": 390,
+      "filesize": 69376000
+    },
+    {
+      "url": "00054.tar",
+      "md5sum": "41e40817e18644572194930fff9691ba",
+      "nsamples": 391,
+      "filesize": 68771840
+    },
+    {
+      "url": "00055.tar",
+      "md5sum": "d56fef777f5c900ac1f4b7cd816d34a2",
+      "nsamples": 390,
+      "filesize": 72294400
+    },
+    {
+      "url": "00056.tar",
+      "md5sum": "cb9d8e12ca8232153045f724ad688e6c",
+      "nsamples": 391,
+      "filesize": 78899200
+    },
+    {
+      "url": "00057.tar",
+      "md5sum": "822919e2e81a9e8b7e63c72d3fcafb04",
+      "nsamples": 391,
+      "filesize": 75479040
+    },
+    {
+      "url": "00058.tar",
+      "md5sum": "c454a899f7b6594a26b063b970222c10",
+      "nsamples": 391,
+      "filesize": 67450880
+    },
+    {
+      "url": "00059.tar",
+      "md5sum": "862cb9fc5721e7b9ab8b5fa5de644770",
+      "nsamples": 390,
+      "filesize": 72110080
+    },
+    {
+      "url": "00060.tar",
+      "md5sum": "4fd9bb0b0c3f8f6d5869533fab35d8d9",
+      "nsamples": 391,
+      "filesize": 75417600
+    },
+    {
+      "url": "00061.tar",
+      "md5sum": "ad3a202b0d06403d1ceda904076dce34",
+      "nsamples": 390,
+      "filesize": 74823680
+    },
+    {
+      "url": "00062.tar",
+      "md5sum": "1d6d41a04305fd51c7ee94b1bea9c7fc",
+      "nsamples": 391,
+      "filesize": 83496960
+    },
+    {
+      "url": "00063.tar",
+      "md5sum": "bffddc1ecfae95010bfb562f8b75849f",
+      "nsamples": 390,
+      "filesize": 78141440
+    },
+    {
+      "url": "00064.tar",
+      "md5sum": "fa83070dfc78ed6869243f0f59caf586",
+      "nsamples": 390,
+      "filesize": 73236480
+    },
+    {
+      "url": "00065.tar",
+      "md5sum": "5c14f4c8d60f2c4db827a7cce19f3471",
+      "nsamples": 390,
+      "filesize": 70952960
+    },
+    {
+      "url": "00066.tar",
+      "md5sum": "118aa788b1000d0b7cce04a9adb6cb59",
+      "nsamples": 391,
+      "filesize": 78520320
+    },
+    {
+      "url": "00067.tar",
+      "md5sum": "2dcf6eca70d7ef332a9944f1fabdca8d",
+      "nsamples": 391,
+      "filesize": 69611520
+    },
+    {
+      "url": "00068.tar",
+      "md5sum": "207838d0555be5e8d236886f8e3a1263",
+      "nsamples": 391,
+      "filesize": 72652800
+    },
+    {
+      "url": "00069.tar",
+      "md5sum": "7f2fe6c00d5ec0e893fa567080e9b945",
+      "nsamples": 391,
+      "filesize": 72314880
+    },
+    {
+      "url": "00070.tar",
+      "md5sum": "68e8bc87a41c9ea3198f7fba7c6b3010",
+      "nsamples": 390,
+      "filesize": 74158080
+    },
+    {
+      "url": "00071.tar",
+      "md5sum": "8ed102a236280c405e87317d65e6aed3",
+      "nsamples": 390,
+      "filesize": 72243200
+    },
+    {
+      "url": "00072.tar",
+      "md5sum": "bdf02930e8241fc1f57bc9e4676c7770",
+      "nsamples": 391,
+      "filesize": 81049600
+    },
+    {
+      "url": "00073.tar",
+      "md5sum": "524959ef680af8e73e2ced43d8596c20",
+      "nsamples": 391,
+      "filesize": 70778880
+    },
+    {
+      "url": "00074.tar",
+      "md5sum": "e2a8832f87af33d5417e08aab24ae8f3",
+      "nsamples": 390,
+      "filesize": 69918720
+    },
+    {
+      "url": "00075.tar",
+      "md5sum": "da7c4ef6c3ced805ab2b356b36e2fdc3",
+      "nsamples": 391,
+      "filesize": 82513920
+    },
+    {
+      "url": "00076.tar",
+      "md5sum": "e78e6c7aefe7b13d32f3710a480b9fbe",
+      "nsamples": 390,
+      "filesize": 74895360
+    },
+    {
+      "url": "00077.tar",
+      "md5sum": "1aff7af49200058c270a1531b998fe17",
+      "nsamples": 391,
+      "filesize": 70625280
+    },
+    {
+      "url": "00078.tar",
+      "md5sum": "e587fe2f7e71989ee77c9515d7490ec7",
+      "nsamples": 391,
+      "filesize": 74301440
+    },
+    {
+      "url": "00079.tar",
+      "md5sum": "c701241b6ffddffef71dd4523f59eee8",
+      "nsamples": 391,
+      "filesize": 72499200
+    },
+    {
+      "url": "00080.tar",
+      "md5sum": "bc9aa190f24f208612de29ede82dbaa9",
+      "nsamples": 391,
+      "filesize": 76697600
+    },
+    {
+      "url": "00081.tar",
+      "md5sum": "5126d60d4ebd754aad6aadc394d6834e",
+      "nsamples": 391,
+      "filesize": 74567680
+    },
+    {
+      "url": "00082.tar",
+      "md5sum": "271d75af780b9ffd9bb359c22562edc0",
+      "nsamples": 391,
+      "filesize": 69826560
+    },
+    {
+      "url": "00083.tar",
+      "md5sum": "f5f01b110f8548dbd7ba9411d227ce83",
+      "nsamples": 390,
+      "filesize": 77578240
+    },
+    {
+      "url": "00084.tar",
+      "md5sum": "37c3aeecef26d7bf934976f38105a82b",
+      "nsamples": 391,
+      "filesize": 69386240
+    },
+    {
+      "url": "00085.tar",
+      "md5sum": "f05b264ee057c55031d0192faa6ce00a",
+      "nsamples": 391,
+      "filesize": 74731520
+    },
+    {
+      "url": "00086.tar",
+      "md5sum": "751e2be745e342664b38d1a2b549d34d",
+      "nsamples": 390,
+      "filesize": 72325120
+    },
+    {
+      "url": "00087.tar",
+      "md5sum": "071eec09d5c3e19fbe0c5a346afa52aa",
+      "nsamples": 391,
+      "filesize": 68311040
+    },
+    {
+      "url": "00088.tar",
+      "md5sum": "c8e35a57bea31a57c2dacd5eb754e7b3",
+      "nsamples": 391,
+      "filesize": 77977600
+    },
+    {
+      "url": "00089.tar",
+      "md5sum": "40fda2dd451f100ecd860097c29b9632",
+      "nsamples": 390,
+      "filesize": 72611840
+    },
+    {
+      "url": "00090.tar",
+      "md5sum": "240ea52bfcaf7ef0d7f2478a8ccc1ab7",
+      "nsamples": 391,
+      "filesize": 76390400
+    },
+    {
+      "url": "00091.tar",
+      "md5sum": "26f52903ba91ac80659097a63fd43927",
+      "nsamples": 391,
+      "filesize": 78397440
+    },
+    {
+      "url": "00092.tar",
+      "md5sum": "00274b1f41c44d114a8e58d2383382e5",
+      "nsamples": 391,
+      "filesize": 70604800
+    },
+    {
+      "url": "00093.tar",
+      "md5sum": "92b3241d791bb2b4d11c042d2ed53e7f",
+      "nsamples": 391,
+      "filesize": 72816640
+    },
+    {
+      "url": "00094.tar",
+      "md5sum": "24416eb0a42c3a95ff202988362a3b91",
+      "nsamples": 390,
+      "filesize": 70625280
+    },
+    {
+      "url": "00095.tar",
+      "md5sum": "9ddcd5a6fb93011c4b5fc44be1c59bfe",
+      "nsamples": 391,
+      "filesize": 77516800
+    },
+    {
+      "url": "00096.tar",
+      "md5sum": "cfd7535353a6672504a90300c3897bed",
+      "nsamples": 390,
+      "filesize": 77342720
+    },
+    {
+      "url": "00097.tar",
+      "md5sum": "dceeca90f0b91ff129e765fa99c417fe",
+      "nsamples": 391,
+      "filesize": 78356480
+    },
+    {
+      "url": "00098.tar",
+      "md5sum": "be8e4e12c12757f122afbc67baf76046",
+      "nsamples": 391,
+      "filesize": 74403840
+    },
+    {
+      "url": "00099.tar",
+      "md5sum": "d9dacef1cb1cb47683b75271ef1600fe",
+      "nsamples": 390,
+      "filesize": 71045120
+    },
+    {
+      "url": "00100.tar",
+      "md5sum": "fdd2ddd7b31d0f7a14392aefba4b90a4",
+      "nsamples": 391,
+      "filesize": 68003840
+    },
+    {
+      "url": "00101.tar",
+      "md5sum": "bfe70566869ed9ac5dc9fd20e143465d",
+      "nsamples": 391,
+      "filesize": 76359680
+    },
+    {
+      "url": "00102.tar",
+      "md5sum": "90dac3ac0e5d124022acfb36ed88b953",
+      "nsamples": 391,
+      "filesize": 77516800
+    },
+    {
+      "url": "00103.tar",
+      "md5sum": "7cbe110b22a83723c6997b57942b4387",
+      "nsamples": 390,
+      "filesize": 75325440
+    },
+    {
+      "url": "00104.tar",
+      "md5sum": "163c0380c8b3f6165c92c56ad017dbde",
+      "nsamples": 391,
+      "filesize": 77117440
+    },
+    {
+      "url": "00105.tar",
+      "md5sum": "ac050c1d24e3fdb8f38503c10887260e",
+      "nsamples": 391,
+      "filesize": 71874560
+    },
+    {
+      "url": "00106.tar",
+      "md5sum": "60adfa78752b3cd54f837bf656568b39",
+      "nsamples": 391,
+      "filesize": 81735680
+    },
+    {
+      "url": "00107.tar",
+      "md5sum": "5e17b57610dcff6979fb856c92cb8c73",
+      "nsamples": 390,
+      "filesize": 76400640
+    },
+    {
+      "url": "00108.tar",
+      "md5sum": "3c7a4d6e1af70606e5d5480cd6312a46",
+      "nsamples": 391,
+      "filesize": 80455680
+    },
+    {
+      "url": "00109.tar",
+      "md5sum": "3b68435ed61d81b5a98f84765aefe326",
+      "nsamples": 390,
+      "filesize": 76615680
+    },
+    {
+      "url": "00110.tar",
+      "md5sum": "7d3ab832f947e41bbcb334b4a4404666",
+      "nsamples": 391,
+      "filesize": 74936320
+    },
+    {
+      "url": "00111.tar",
+      "md5sum": "6a54ddfb944bd40e06ba3b4531ef447e",
+      "nsamples": 391,
+      "filesize": 75683840
+    },
+    {
+      "url": "00112.tar",
+      "md5sum": "31fb2ccea7346fc8d9c7fc1e8ba0a71c",
+      "nsamples": 390,
+      "filesize": 79779840
+    },
+    {
+      "url": "00113.tar",
+      "md5sum": "68b04a3c4b52c90ca119551664feecb3",
+      "nsamples": 390,
+      "filesize": 74147840
+    },
+    {
+      "url": "00114.tar",
+      "md5sum": "645b457dd9f8551b8b3fefb2a369e4e1",
+      "nsamples": 390,
+      "filesize": 72212480
+    },
+    {
+      "url": "00115.tar",
+      "md5sum": "8775bedd051d3991079e1af0534fcf6a",
+      "nsamples": 390,
+      "filesize": 75601920
+    },
+    {
+      "url": "00116.tar",
+      "md5sum": "67583fccc3090f439e0290a3f9819812",
+      "nsamples": 391,
+      "filesize": 73656320
+    },
+    {
+      "url": "00117.tar",
+      "md5sum": "7ba578f9d7e10550c0d41953fc7ae540",
+      "nsamples": 391,
+      "filesize": 75929600
+    },
+    {
+      "url": "00118.tar",
+      "md5sum": "4dc92f82506996cb06e179d3623337b7",
+      "nsamples": 391,
+      "filesize": 74506240
+    },
+    {
+      "url": "00119.tar",
+      "md5sum": "2c161c2655fd56a3408c7fde2a06f205",
+      "nsamples": 391,
+      "filesize": 72837120
+    },
+    {
+      "url": "00120.tar",
+      "md5sum": "a442b4e9fbdcff031ace5b3947a0d54a",
+      "nsamples": 391,
+      "filesize": 83036160
+    },
+    {
+      "url": "00121.tar",
+      "md5sum": "16ea02e55a5757446e6162669950778f",
+      "nsamples": 391,
+      "filesize": 83005440
+    },
+    {
+      "url": "00122.tar",
+      "md5sum": "64f2b93741ca90c1e94207d89895858a",
+      "nsamples": 391,
+      "filesize": 77475840
+    },
+    {
+      "url": "00123.tar",
+      "md5sum": "a8e5be5e9321f694528c4ff257d7c6fb",
+      "nsamples": 390,
+      "filesize": 72683520
+    },
+    {
+      "url": "00124.tar",
+      "md5sum": "4ab8640b0d5e5c1a364791b502afe745",
+      "nsamples": 390,
+      "filesize": 70287360
+    },
+    {
+      "url": "00125.tar",
+      "md5sum": "722ead48e5f3bd4e449be0034cfbb437",
+      "nsamples": 391,
+      "filesize": 74188800
+    },
+    {
+      "url": "00126.tar",
+      "md5sum": "66e0973017b473fdf8768e88ed1760ac",
+      "nsamples": 390,
+      "filesize": 75038720
+    },
+    {
+      "url": "00127.tar",
+      "md5sum": "5472626753655fa3fd1e6788bf27507b",
+      "nsamples": 391,
+      "filesize": 72519680
+    }
+  ]
+}
