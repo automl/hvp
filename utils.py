@@ -9,9 +9,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.distributed
-from models.vision_transformer import VisionTransformer
 
-from . import distributed as dist
+import distributed as dist
 
 
 def fix_random_seeds(seed=0):
@@ -285,9 +284,8 @@ def load_pretrained_weights(model, pretrained_weights, checkpoint_key):
             del state_dict[k]
 
         msg = model.load_state_dict(state_dict, strict=False)
-        # commented out due to taking linear_eval from DINO (which uses linear classifier class
-        #if not isinstance(model, VisionTransformer):
-        #    assert set(msg.missing_keys) == {"fc.weight", "fc.bias"}
+        assert set(msg.missing_keys) == {"fc.weight", "fc.bias"}
+
         print('Pretrained weights found at {} and loaded with msg: {}'.format(pretrained_weights, msg))
     else:
         print("=> no checkpoint found at '{}'".format(pretrained_weights))
@@ -324,18 +322,6 @@ def bool_flag(s):
         raise argparse.ArgumentTypeError("invalid value for a boolean flag")
 
 
-def clip_gradients(model, clip):
-    norms = []
-    for name, p in model.named_parameters():
-        if p.grad is not None:
-            param_norm = p.grad.data.norm(2)
-            norms.append(param_norm.item())
-            clip_coef = clip / (param_norm + 1e-6)
-            if clip_coef < 1:
-                p.grad.data.mul_(clip_coef)
-    return norms
-
-
 def find_free_port():
     import socket
     from contextlib import closing
@@ -344,4 +330,3 @@ def find_free_port():
         s.bind(("", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
-

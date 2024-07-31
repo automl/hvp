@@ -1,6 +1,4 @@
 arch: resnet50
-patch_size: 16
-drop_path_rate: 0.1
 batch_size: 512
 blur_prob: 0.5
 crop_scale:
@@ -16,11 +14,12 @@ lr: 0.05
 momentum: 0.9
 pred_dim: 512
 weight_decay: 0.0001
-# MinSim parameters
-select_fn: identity
-num_crops: 2
+# MSAT parameters
+start_val: 0.3
+end_val: null
+msat_schedule: linear
+msat_warmup: 0
+msat_prob: 0.0
 # Misc parameters
 data_path: null
 output_dir: null
-optimizer: sgd
-clip_grad: 0.0

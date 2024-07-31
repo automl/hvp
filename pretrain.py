@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import datetime
+from collections import defaultdict
 from pathlib import Path
 
 import torch
@@ -17,65 +18,49 @@ from omegaconf import OmegaConf
 from torch.utils.data import DistributedSampler, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from torchvision import transforms
+import transforms_p as tp
+
 import data
-from utils import distributed as dist
+import distributed as dist
 import builder
-import select_crops
-import custom_transform
+import msatransform
 import utils
 
-from models import resnet_cifar, resnet, vision_transformer as vits
-from torchsummary import summary
+import resnet_cifar
+import resnet_imagenet
 
 
 def custom_collate(batch):
-    bs = len(batch[0][0][0])
-    images = [torch.stack([item[0][0][n] for item in batch]) for n in range(bs)]
-    params = [[item[0][1][n] for item in batch] for n in range(bs)]
-    # target = [item[1] for item in batch]
-    return images, params
+    ncrops = len(batch[0][0][0])
+    images = [torch.stack([item[0][0][n] for item in batch]) for n in range(ncrops)]
+    params = [[item[0][1][n] for item in batch] for n in range(ncrops)]
+    targets = [item[1] for item in batch]
+    return images, params, targets
 
 
 def main(cfg):
-    dist.init_distributed_mode(cfg) if not dist.is_enabled() else None
+    dist.init_distributed_mode(cfg)
+    utils.fix_random_seeds(cfg.seed)
     cudnn.benchmark = True
 
     print(f"git:\n  {utils.get_sha()}\n")
     print(OmegaConf.to_yaml(cfg))
 
-    if cfg.arch in vits.__dict__.keys():
-        arch = vits.__dict__[cfg.arch]
-        proj_layer = 3
-        encoder_params = {
-            "img_size": cfg.crop_size,
-            "patch_size": cfg.patch_size,
-            "drop_path_rate": cfg.drop_path_rate,
-            "num_classes": cfg.dim
-        }
-    elif cfg.arch in resnet_cifar.__dict__.keys():
+    if cfg.arch in resnet_cifar.__dict__.keys():
         arch = resnet_cifar.__dict__[cfg.arch]
         proj_layer = 2
-        encoder_params = {
-            "num_classes": cfg.dim,
-            "zero_init_residual": True
-        }
-    elif cfg.arch in resnet.__dict__.keys():
-        arch = resnet.__dict__[cfg.arch]
+    elif cfg.arch in resnet_imagenet.__dict__.keys():
+        arch = resnet_imagenet.__dict__[cfg.arch]
         proj_layer = 3
-        encoder_params = {
-            "num_classes": cfg.dim,
-            "zero_init_residual": True
-        }
     else:
         print(f"Unknown architecture: {cfg.arch}")
         sys.exit(1)
 
     model = builder.SimSiam(
         arch,
-        dim=cfg.dim,
-        pred_dim=cfg.pred_dim,
-        proj_layer=proj_layer,
-        encoder_params=encoder_params
+        cfg.dim, cfg.pred_dim,
+        proj_layer,
     ).cuda()
 
     if utils.has_batchnorms(model):
@@ -92,10 +77,7 @@ def main(cfg):
     else:
         optim_params = model.parameters()
 
-    if cfg.optimizer == "sgd":
-        optimizer = torch.optim.SGD(optim_params, init_lr, momentum=cfg.momentum, weight_decay=cfg.weight_decay)
-    elif cfg.optimizer == "adamw":
-        optimizer = torch.optim.AdamW(optim_params, init_lr, weight_decay=cfg.weight_decay)  # to use with ViTs
+    optimizer = torch.optim.SGD(optim_params, init_lr, momentum=cfg.momentum, weight_decay=cfg.weight_decay)
 
     fp16 = torch.cuda.amp.GradScaler() if cfg.fp16 else None
 
@@ -105,16 +87,26 @@ def main(cfg):
     else:
         mean, std = data.IMAGENET_DEFAULT_MEAN, data.IMAGENET_DEFAULT_STD
 
-    transform = custom_transform.TransformParams(
-        crop_size=cfg.crop_size,
-        crop_scale=cfg.crop_scale,
-        blur_prob=cfg.blur_prob,
-        hflip_prob=cfg.hflip_prob,
-        mean=mean,
-        std=std,
+    rrc = transforms.RandomResizedCrop(cfg.crop_size, cfg.crop_scale)
+    transform = transforms.Compose([
+        tp.RandomColorJitter(0.4, 0.4, 0.4, 0.1, p=0.8),
+        tp.RandomGrayscale(p=0.2),
+        tp.RandomGaussianBlur(9, (0.1, 2.0), p=cfg.blur_prob),
+        tp.RandomHorizontalFlip(p=cfg.hflip_prob),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean, std=std)
+    ])
+    msat = msatransform.MSATransform(
+        rrc=rrc,
+        total_epochs=cfg.epochs,
+        warmup_epochs=cfg.msat_warmup,
+        start_val=cfg.start_val,
+        end_val=cfg.end_val,
+        schedule=cfg.msat_schedule,
+        transforms=transform,
+        p=cfg.msat_prob
     )
-    multi_crops_transform = data.MultiCropsTransform(transform, cfg.num_crops)
-    dataset, _ = data.make_dataset(cfg.data_path, cfg.dataset, True, multi_crops_transform)
+    dataset, _ = data.make_dataset(cfg.data_path, cfg.dataset, True, msat)
 
     sampler = DistributedSampler(dataset)
     cfg.batch_size_per_gpu = cfg.batch_size // dist.get_world_size()
@@ -128,7 +120,7 @@ def main(cfg):
         collate_fn=custom_collate,
     )
 
-    select_fn = select_crops.names[cfg.select_fn]
+    # select_fn = select_crops.names[cfg.select_fn]
 
     # ============ optionally resume training ... ============
     to_restore = {"epoch": 0, "total_time": 0}
@@ -147,10 +139,11 @@ def main(cfg):
 
     for epoch in range(start_epoch, cfg.epochs):
         loader.sampler.set_epoch(epoch)
+        msat.set_epoch(epoch)
         adjust_learning_rate(optimizer, init_lr, epoch, cfg)
 
         start = time.time()
-        train_stats, metrics = train(loader, model, criterion, optimizer, epoch, cfg, fp16, board, select_fn)
+        train_stats, metrics = train(loader, model, criterion, optimizer, epoch, cfg, fp16, board)
         total_time += int(time.time() - start)
 
         save_dict = {
@@ -176,24 +169,17 @@ def main(cfg):
     print('Training time {}'.format(total_time_str))
 
 
-def train(loader, model, criterion, optimizer, epoch, cfg, fp16, board, select_fn):
+def train(loader, model, criterion, optimizer, epoch, cfg, fp16, board):
     model.train()
-    metrics = {
-        "epoch": epoch,
-        "loss": [],
-        "lr": [],
-        "selected": [],
-        "params": [],
-        "sample-loss": [],
-    }
+    metrics = defaultdict(list)
+    metrics["epoch"] = epoch
     metric_logger = utils.MetricLogger(delimiter=" ")
     header = 'Epoch: [{}/{}]'.format(epoch, cfg.epochs)
-    for it, (images, params) in enumerate(metric_logger.log_every(loader, cfg.print_freq, header)):
+    for it, (images, params, _) in enumerate(metric_logger.log_every(loader, cfg.print_freq, header)):
         it = len(loader) * epoch + it  # global training iteration
 
         images = [im.cuda(non_blocking=True) for im in images]
-
-        x1, x2, selected, sample_loss = select_fn(images, model, fp16)
+        x1, x2 = images
 
         with torch.cuda.amp.autocast(fp16 is not None):
             p1, p2, z1, z2 = model(x1=x1, x2=x2)
@@ -202,31 +188,24 @@ def train(loader, model, criterion, optimizer, epoch, cfg, fp16, board, select_f
         optimizer.zero_grad()
         if fp16 is None:
             loss.backward()
-            if cfg.clip_grad:
-                _ = utils.clip_gradients(model, cfg.clip_grad)
             optimizer.step()
         else:
             fp16.scale(loss).backward()
-            if cfg.clip_grad:
-                fp16.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
-                _ = utils.clip_gradients(model, cfg.clip_grad)
-
             fp16.step(optimizer)
             fp16.update()
 
         # logging
         torch.cuda.synchronize()
+
         metric_logger.update(loss=loss.item())
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
 
         metrics["loss"].append(loss.item())
         metrics["lr"].append(optimizer.param_groups[0]["lr"])
-        if cfg.use_adv_metric and it % cfg.adv_metric_freq == 0:
-            metrics["selected"].append(selected.tolist())
+        if dist.is_main_process() and cfg.use_adv_metric and it % cfg.adv_metric_freq == 0:
             metrics["params"].append(params)
-            metrics["sample-loss"].append(sample_loss.tolist())
 
-        if dist.is_main_process() and it % cfg.logger_freq == 0:
+        if dist.is_main_process() and it % cfg.log_freq == 0:
             board.add_scalar("training loss", loss.item(), it)
             board.add_scalar("training lr", optimizer.param_groups[0]["lr"], it)
 
@@ -252,9 +231,6 @@ def get_args_parser():
     p.add_argument('--data_path', type=str,
                    help='(root) path to dataset')
     p.add_argument('-a', '--arch', type=str,
-                   choices=["vit_tiny", "vit_small", "vit_base",
-                            "resnet18", "resnet34", "resnet50", "resnet101", "resnet152",
-                            "resnet18_cifar", "resnet34_cifar", "resnet50_cifar", "resnet101_cifar", "resnet152_cifar"],
                    help="Name of architecture to train (default: resnet50)")
     p.add_argument('--epochs', type=int,
                    help='number of total epochs to run (default: 100)')
@@ -266,9 +242,6 @@ def get_args_parser():
                    help='momentum of SGD solver (default: 0.9)')
     p.add_argument('--wd', '--weight_decay', dest="weight_decay", type=float,
                    help='weight decay (default: 1e-4)')
-    p.add_argument('--optimizer', default='sgd', type=str,
-                        choices=['adamw', 'sgd'],
-                        help="""Type of optimizer. We recommend using adamw with ViTs.""")
 
     # simsiam specific parameters:
     p.add_argument('--dim', type=int,
@@ -277,12 +250,6 @@ def get_args_parser():
                    help='hidden dimension of the predictor (default: 512)')
     p.add_argument('--fix_pred_lr', type=utils.bool_flag,
                    help='Fix learning rate for the predictor (default: True)')
-
-    # parameters for VitS
-    p.add_argument('--patch_size', type=int, default=16,
-                   help="Size in pixels of input square patches - default 16 (for 16x16 patches).")
-    p.add_argument('--drop_path_rate', type=float,
-                   help="stochastic depth rate. (default: 0.1)")
 
     # data augmentation parameters:
     p.add_argument("--crop_size", type=int,
@@ -295,8 +262,17 @@ def get_args_parser():
                    help="Horizontal-Flip probability (default: 0.5)")
 
     # MinSim parameters:
-    p.add_argument("--num_crops", default=2, type=int, help="Number of crops")
-    p.add_argument("--select_fn", default="identity", type=str, choices=select_crops.names)
+    # p.add_argument("--num_crops", default=2, type=int, help="Number of crops")
+    # p.add_argument("--select_fn", default="identity", type=str, choices=select_crops.names)
+    p.add_argument("--start_val", type=float, default=None,
+                   help="Initial value of the MSATransform parameter for rejection sampling")
+    p.add_argument("--end_val", type=float, default=None,
+                   help="End value of the MSAT parameter")
+    p.add_argument("--msat_schedule", type=str, choices=['linear', 'cosine'],
+                   help="schedule type for MSAT value")
+    p.add_argument("--msat_warmup", type=int, help='number of warmup epochs that turns off MSAT')
+    p.add_argument("--msat_prob", type=float,
+                   help="MSAT probability (default: 0.5)")
 
     # Misc
     p.add_argument('--fp16', default=True, type=utils.bool_flag,
@@ -315,15 +291,12 @@ def get_args_parser():
                    help="url used to set up distributed training")
     p.add_argument("--print_freq", default=10, type=int,
                    help="Print progress every x iterations (default: 10)")
-    p.add_argument("--logger_freq", default=50, type=int,
+    p.add_argument("--log_freq", default=50, type=int,
                    help="Log progress every x iterations to tensorboard (default: 50)")
     p.add_argument("--use_adv_metric", default=True, type=utils.bool_flag,
                    help="Log advanced metrics: transforms params, crop selection, sample-loss, ... (default: False)")
     p.add_argument("--adv_metric_freq", default=10, type=int,
                    help="Log advanced metrics every x iterations (default: 100)")
-    p.add_argument('--clip_grad', type=float, default=0.0, help="""Maximal parameter
-        gradient norm if using gradient clipping. Clipping with norm .3 ~ 1.0 can
-        help optimization for larger ViT architectures. 0 for disabling.""")
 
     return p
 

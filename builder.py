@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from models.vision_transformer import VisionTransformer
 
 
 class SimSiam(nn.Module):
@@ -8,7 +7,7 @@ class SimSiam(nn.Module):
     Build a SimSiam model.
     """
 
-    def __init__(self, base_encoder, dim=2048, pred_dim=512, proj_layer=3, encoder_params={}):
+    def __init__(self, base_encoder, dim=2048, pred_dim=512, proj_layer=3):
         """
         dim: feature dimension (default: 2048)
         pred_dim: hidden dimension of the predictor (default: 512)
@@ -16,35 +15,28 @@ class SimSiam(nn.Module):
         super(SimSiam, self).__init__()
 
         # create the encoder
-        self.encoder = base_encoder(**encoder_params)
+        # num_classes is the output fc dimension, zero-initialize last BNs
+        self.encoder = base_encoder(num_classes=dim, zero_init_residual=True)
 
         # build an n-layer projector
-        input_dim = self.encoder.fc.weight.shape[1]
-
-        if isinstance(self.encoder, VisionTransformer):
-            hidden_dim = 2048
-        else:
-            hidden_dim = input_dim
-
+        prev_dim = self.encoder.fc.weight.shape[1]
         layers = [
-            nn.Linear(input_dim, hidden_dim, bias=False),
-            nn.BatchNorm1d(hidden_dim),
+            nn.Linear(prev_dim, prev_dim, bias=False),
+            nn.BatchNorm1d(prev_dim),
             nn.ReLU(inplace=True),
         ]
-
         for _ in range(proj_layer - 2):
             layers.extend([
-                nn.Linear(hidden_dim, hidden_dim, bias=False),
-                nn.BatchNorm1d(hidden_dim),
+                nn.Linear(prev_dim, prev_dim, bias=False),
+                nn.BatchNorm1d(prev_dim),
                 nn.ReLU(inplace=True),
             ])
         layers.extend([
-            # self.encoder.fc,
-            nn.Linear(hidden_dim, dim, bias=False),
+            self.encoder.fc,
             nn.BatchNorm1d(dim, affine=False)
         ])
         self.encoder.fc = nn.Sequential(*layers)  # output layer
-        # self.encoder.fc[-2].bias.requires_grad = False  # hack: not use bias as it is followed by BN
+        self.encoder.fc[-2].bias.requires_grad = False  # hack: not use bias as it is followed by BN
 
         # build a 2-layer predictor
         self.predictor = nn.Sequential(nn.Linear(dim, pred_dim, bias=False),
@@ -66,11 +58,6 @@ class SimSiam(nn.Module):
         z1 = self.encoder(x1)  # NxC
         z2 = self.encoder(x2)  # NxC
 
-        # projector / fc is not called in ViT's forward
-        if isinstance(self.encoder, VisionTransformer):
-            z1 = self.encoder.fc(z1)
-            z2 = self.encoder.fc(z2)
-
         p1 = self.predictor(z1)  # NxC
         p2 = self.predictor(z2)  # NxC
 
@@ -79,9 +66,6 @@ class SimSiam(nn.Module):
     @torch.no_grad()
     def single_forward(self, x):
         z = self.encoder(x)
-        # projector / fc is not called in ViT's forward
-        if isinstance(self.encoder, VisionTransformer):
-            z = self.encoder.fc(z)
         p = self.predictor(z)
         return p, z
 

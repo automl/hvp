@@ -4,18 +4,13 @@ from typing import Sequence, Tuple
 
 from torchvision.transforms import CenterCrop, ColorJitter, Compose, GaussianBlur, InterpolationMode,  \
     Normalize, RandomApply, RandomGrayscale, RandomHorizontalFlip, RandomResizedCrop, Resize, ToTensor
-from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, VOCDetection, INaturalist, Places365, \
-    FakeData, Flowers102, StanfordCars, INaturalist, Food101
-
+from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder
 
 IMAGENET_DEFAULT_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_DEFAULT_STD = (0.229, 0.224, 0.225)
 
 CIFAR10_DEFAULT_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR10_DEFAULT_STD = (0.2023, 0.1994, 0.2010)
-
-FLOWERS102_DEFAULT_MEAN = (0.4353, 0.3773, 0.2872)
-FLOWERS102_DEFAULT_STD = (0.2966, 0.2455, 0.2698)
 
 
 class MultiCropsTransform:
@@ -101,40 +96,18 @@ def make_classification_val_transform(
     return Compose(transforms_list)
 
 
-
 def make_dataset(
         root: str,
         dataset: str,
         train: bool,
         transform):
     if dataset == 'CIFAR10':
-        return CIFAR10(root, download=False, train=train, transform=transform), 10
-    elif dataset == 'CIFAR100':
-        return CIFAR100(root, download=False, train=train, transform=transform), 100
-    elif dataset == 'Food101':
-        split = "train" if train else "test"
-        return Food101(root, download=False, split=split, transform=transform), 101
-    elif dataset == "Flowers102":
-        split = "train" if train else "test"
-        return Flowers102(root, download=False, split=split, transform=transform), 102
-    elif dataset == "StanfordCars":
-        split = "train" if train else "test"
-        return StanfordCars(root, download=True, split=split, transform=transform), 196
-    elif dataset == "inat21":
-        version = "2021_train_mini" if train else "2021_valid"
-        return INaturalist(root, download=False, version=version, transform=transform), 10000
-    elif dataset == "Places365":
-        split = "train-standard" if train else "val"
-        return Places365(root, download=False, split=split, transform=transform), 365
+        return CIFAR10(root, download=True, train=train, transform=transform), 10
+    if dataset == 'CIFAR100':
+        return CIFAR100(root, download=True, train=train, transform=transform), 100
     elif dataset == 'ImageNet':
         root = os.path.join(root, 'train' if train else 'val')
         dataset = ImageFolder(root, transform=transform)
-        return dataset, 1000
-    elif dataset == 'Test32':
-        dataset = FakeData(size=1000, image_size=(3, 32, 32), num_classes=10, transform=transform)
-        return dataset, 10
-    elif dataset == 'Test224':
-        dataset = FakeData(size=1000, image_size=(3, 224, 224), num_classes=1000, transform=transform)
         return dataset, 1000
     print(f"Does not support dataset: {dataset}")
     sys.exit(1)
