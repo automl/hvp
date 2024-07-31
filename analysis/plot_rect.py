@@ -9,15 +9,15 @@ def rect_last_iter(metrics):
     """Plots the rectangles of the last iteration of every epoch (1st 4-tuple)."""
     for epoch, line in enumerate(metrics):
         params = line["params"][-1]
-        # selected = np.array(line["selected"][-1])[:, 0]
+        selected = np.array(line["selected"][-1])[:, 0]
         fig, ax = plt.subplots(figsize=(5, 5))
         for n, (data, color) in enumerate(zip(params, colors.BASE_COLORS)):
-            # style = '-' if n in selected else ':'
-            H, W, t, l, h, w = data[0][0]
-            x = np.array([l, l+w, l+w, l, l]) / W
-            y = np.array([t, t, t+h, t+h, t]) / H
+            style = '-' if n in selected else ':'
+            w, h, a, b, xw, yh = data[0][0]
+            x = np.array([a, a+xw, a+xw, a, a]) / w
+            y = np.array([b, b, b+yh, b+yh, b]) / h
 
-            ax.plot(x, y, linestyle='-', color=color, linewidth=2.0)
+            ax.plot(x, y, linestyle=style, color=color, linewidth=2.0)
 
         ax.set(xlim=(0, 1), xticks=[],
                ylim=(0, 1), yticks=[])
@@ -58,4 +58,5 @@ if __name__ == "__main__":
     print(f"Num epochs: {len(metrics_file)}")
     print(f"Keys: {metrics_file[-1].keys()}")
 
+    rect_last_iter(metrics_file)
     rect_last_iter(metrics_file)

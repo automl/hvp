@@ -6,9 +6,9 @@ from plot_utils import read_file, save_plot
 
 def calc_rel_dist(x1, x2):
     h, w = x1[0], x1[1]
-    t1, l1 = x1[2], x1[3]
-    t2, l2 = x2[2], x2[3]
-    return math.sqrt((t1 - t2) ** 2 + (l1 - l2) ** 2) / math.sqrt(h ** 2 + w ** 2)
+    c1x, c1y = x1[2], x1[3]
+    c2x, c2y = x2[2], x2[3]
+    return math.sqrt((c1x - c2x) ** 2 + (c1y - c2y) ** 2) / math.sqrt(h ** 2 + w ** 2)
 
 
 def _calc_avg_dist_one_epoch(metrics_epoch):

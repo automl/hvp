@@ -10,8 +10,8 @@ def get_crop_size(x1, x2):
 
 
 def calc_cs(gp):
-    H, W, _, _, h, w = gp
-    return h / H * w / W
+    w, h, _, _, x, y = gp
+    return x / w * y / h
 
 
 def _get_cropsize_one_epoch_avg_min_max(epoch_metrics):

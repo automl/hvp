@@ -7,7 +7,7 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from typing import Iterable
 
-from plot_utils import read_file
+from utils import read_file
 
 NUM_CROPS = 4
 PLOT_DIR_PATH = "plots/tsne/"

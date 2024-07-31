@@ -1,5 +1,7 @@
 import sys
 import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
 
 from utils import read_file, calc_area, calc_overlap, calc_iou, calc_overlap_norm, save_histogram
 
@@ -79,32 +81,64 @@ def get_hist_data(epoch_metric, typ):
     return [np.array(sel), np.array(uns)]
 
 
+def iou_per_epoch(params, selected):
+    n_iter, n_crops, n_params = params.shape
+
+    select = []
+    not_select = []
+    for i in range(n_iter):
+        m, n = selected[i]
+        p1 = params[i, m][:6]
+        p2 = params[i, n][:6]
+        value = calc_iou(p1, p2)
+        select.append(value)
+        if m == 0 and n == 1:
+            not_select.append(value)
+        else:
+            p1 = params[i, 0][:6]
+            p2 = params[i, 1][:6]
+            value = calc_iou(p1, p2)
+            not_select.append(value)
+    return select, not_select
+
+
+def iou_data(params, selected):
+    epochs = len(params)
+    out1, out2 = [], []
+    for n in range(epochs):
+        x, y = iou_per_epoch(params[n], selected[n])
+        out1.extend(x)
+        out2.extend(y)
+    return [np.array(out1), np.array(out2)]
+
+
 if __name__ == "__main__":
-    seeds = 0, 1, 2
-    for seed in seeds:
-        data_path = f"../../exp_data/metrics{seed}.json"
-        metrics = read_file(data_path)
+    path = "C:/Users/ovi/Documents/SelfSupervisedLearning/metrics/pickle/simsiam-minsim-resnet50-ep100-seed0.pkl"
+    metrics = pd.read_pickle(path)
 
-        typ = "iou"  # "iou" "overlap" "iou-vs-rand"
-        exp_name = f"simsiam-minsim-collect_metrics-resnet50-ImageNet-ep100-bs256-select_cross-ncrops4-lr0.05-wd0.0001-mom0.9-seed{seed}"
-        path = f"plots/{exp_name}/histograms-{typ}"
+    data = iou_data(metrics["params"], metrics["selected"])
 
-        title = f"{typ} of Selected vs Not-Selected"  # "IoU of Selected vs Not-Selected (Random)"
-        xlabel = f"{typ}"
-        ylabel = "density"
+    num_bins = 20
+    labels = "selected", "random"
+    xlabel = "IoU"
+    ylabel = "Density"
+    title = "IoU - Selected vs Random"
 
-        every_x_epochs = 10
-        num_bins = 20
-        labels = "selected", "not-selected"
-        for n, epoch in enumerate(metrics):
-            if n % every_x_epochs:
-                continue
-            data = get_hist_data(epoch, typ)
+    fig, ax = plt.subplots()
+    ax.hist(data, num_bins, density=True, label=labels, range=(0.1, 1.))
+    ax.legend(loc='upper right')
+    # ax.set_title(file_name)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    fig.suptitle(title)
+    # fig.text(0.5, 0.01, exp_name, fontsize='x-small', ha='center')
+    plt.tight_layout()
 
-            file_name = f"epoch{n}.png"  # name.png
-            save_histogram(
-                data=data, labels=labels,
-                title=title, xlabel=xlabel, ylabel=ylabel,
-                path=path, file_name=file_name, exp_name=exp_name
-            )
+    plt.show()
+    # out_dir = Path(path)
+    # out_dir.mkdir(parents=True, exist_ok=True)
+    # save_path = out_dir.joinpath(file_name)
+    fig.savefig("all.png")
+    # print(f"Plot saved at {save_path}.png")
+    # plt.close(fig)
 
