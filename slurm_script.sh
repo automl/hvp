@@ -23,7 +23,7 @@ ml NCCL/default-CUDA-12
 ml PyTorch/2.1.2
 ml torchvision
 ml tensorboard
-source /p/project/projectnucleus/envs/dino/bin/activate
+source /p/project1/projectnucleus/envs/dino/bin/activate
 
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
 # Allow communication over InfiniBand cells.

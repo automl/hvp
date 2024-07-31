@@ -34,7 +34,7 @@ num_global_crops_loader: 4
 num_local_crops_loader: 16
 select_fn: cross
 dataset: ImageNet
-data_path: /p/fastdata/mmlaion/imagenet-1K-webdataset
+data_path: /p/data1/mmlaion/imagenet-1K-webdataset
 dist_backend: nccl
 dist_url: env://
 grad_accum_steps: 1

@@ -12,7 +12,7 @@ weight_decay: 0.0
 crop_size: 224
 resize_size: 256
 dataset: imagenet
-data_path: /p/fastdata/mmlaion/imagenet-1K-webdataset
+data_path: /p/data1/mmlaion/imagenet-1K-webdataset
 dist_backend: nccl
 dist_url: env://
 ckp_key: teacher
