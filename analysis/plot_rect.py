@@ -4,13 +4,11 @@ import numpy as np
 
 import matplotlib.colors as colors
 
-NUM_CROPS = 4
-
 
 def rect_last_iter(metrics):
     """Plots the rectangles of the last iteration of every epoch (1st 4-tuple)."""
     for epoch, line in enumerate(metrics):
-        params = line["params"][-1][:NUM_CROPS]
+        params = line["params"][-1]
         selected = np.array(line["selected"][-1])[:, 0]
         fig, ax = plt.subplots(figsize=(5, 5))
         for n, (data, color) in enumerate(zip(params, colors.BASE_COLORS)):
@@ -34,7 +32,7 @@ def rect_all_iter(metrics):
         for m, params in enumerate(line["params"]):
             selected = np.array(line["selected"][m])[:, 0]  # first 4-tuple
             fig, ax = plt.subplots(figsize=(5, 5))
-            for n, (data, color) in enumerate(zip(params[:NUM_CROPS], colors.BASE_COLORS)):
+            for n, (data, color) in enumerate(zip(params, colors.BASE_COLORS)):
                 style = '-' if n in selected else ':'
                 w, h, a, b, xw, yh = data[0][0]  # first 4-tuple, geometric (RRC) parameters
                 x = np.array([a, a+xw, a+xw, a, a]) / w
@@ -52,7 +50,7 @@ def rect_all_iter(metrics):
 
 if __name__ == "__main__":
     # read data
-    data_path = "../../exp_data/metrics0_dino.json"
+    data_path = "../../exp_data/metrics.json"
     with open(data_path, "r") as file:
         # metrics = json.loads(file.readline())
         metrics_file = list(map(json.loads, file.readlines()))
@@ -60,4 +58,5 @@ if __name__ == "__main__":
     print(f"Num epochs: {len(metrics_file)}")
     print(f"Keys: {metrics_file[-1].keys()}")
 
+    rect_last_iter(metrics_file)
     rect_last_iter(metrics_file)

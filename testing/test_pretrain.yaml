@@ -1,0 +1,34 @@
+arch: resnet18_cifar
+batch_size: 16
+blur_prob: 0.0
+crop_scale:
+- 0.2
+- 1.0
+crop_size: 32  # 224
+dataset: CIFAR10  # ImageNet
+dim: 2048
+epochs: 800
+fix_pred_lr: true
+hflip_prob: 0.5
+lr: 0.0
+momentum: 0.9
+pred_dim: 512
+weight_decay: 1.5e-6
+select_fn: identity
+data_path: /work/dlclarge1/ferreira-simsiam/simsiam/datasets/CIFAR10 #../datasets/CIFAR10  # /data/datasets/ImageNet/imagenet-pytorch
+output_dir: exp
+num_crops: 2
+fp16: true
+saveckp_freq: 0
+seed: 42
+num_workers: 8
+dist_backend: gloo  # unix: nccl, win: gloo
+dist_url: env://
+print_freq: 10
+logger_freq: 50
+use_adv_metric: true
+adv_metric_freq: 100
+lambd: 0.0051
+projector: 8192-8192-8192
+learning_rate_weights: 0.2
+learning_rate_biases: 0.0048
