@@ -1,0 +1,30 @@
+# model parameters
+arch: vit_small
+img_size: 224
+patch_size: 16
+
+# training/optimization parameters
+avgpool: false
+batch_size: 1024
+epochs: 100
+lr: 0.001
+momentum: 0.9
+n_last_blocks: 4
+optimizer: sgd
+weight_decay: 0.0
+
+# augmentation parameters
+crop_size: 224
+resize_size: 256
+
+# misc
+dataset: ImageNet
+data_path: null
+dist_backend: nccl
+dist_url: env://
+ckp_key: teacher
+pretrained: checkpoint.pth
+log_freq: 50
+num_workers: 8
+output_dir: .
+val_freq: 1

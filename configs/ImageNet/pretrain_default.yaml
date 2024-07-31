@@ -1,0 +1,59 @@
+# model parameters
+arch: vit_small
+img_size: 224
+patch_size: 16
+out_dim: 65536
+norm_last_layer: true
+momentum_teacher: 0.996
+use_bn_in_head: false
+
+# temperature teacher parameters
+teacher_temp: 0.04
+warmup_teacher_temp: 0.04
+warmup_teacher_temp_epochs: 0
+
+# training/optimization parameters
+fp16: true
+batch_size: 1024
+clip_grad: 3.0
+drop_path_rate: 0.1
+epochs: 100
+warmup_epochs: 10
+freeze_last_layer: 1
+lr: 0.0005
+min_lr: 1.0e-06
+optimizer: adamw
+weight_decay: 0.04
+weight_decay_end: 0.4
+
+# Augmentation parameters
+global_crops_scale:
+- 0.4
+- 1.0
+global_crops_size: 224
+local_crops_number: 8
+local_crops_scale:
+- 0.05
+- 0.4
+local_crops_size: 96
+
+# MinSim parameters
+limit_comparisons: 0
+num_global_crops_loader: 2
+num_local_crops_loader: 8
+select_fn: identity
+
+# Misc parameters
+dataset: ImageNet
+data_path: null
+dist_backend: nccl
+dist_url: env://
+grad_accum_steps: 1
+log_freq: 50
+num_workers: 8
+print_freq: 10
+saveckp_freq: 0
+seed: 0
+output_dir: .
+use_adv_metric: true
+adv_metric_freq: 10
