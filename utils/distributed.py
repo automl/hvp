@@ -1,46 +1,97 @@
 import os
-import sys
 
 import torch
 import torch.distributed as dist
-import datetime
+
+
+def is_using_distributed():
+    if "WORLD_SIZE" in os.environ:
+        return int(os.environ["WORLD_SIZE"]) > 1
+    if "SLURM_NTASKS" in os.environ:
+        return int(os.environ["SLURM_NTASKS"]) > 1
+    return False
+
+
+def world_info_from_env():
+    local_rank = 0
+    for v in (
+        "LOCAL_RANK",
+        "MPI_LOCALRANKID",
+        "SLURM_LOCALID",
+        "OMPI_COMM_WORLD_LOCAL_RANK",
+    ):
+        if v in os.environ:
+            local_rank = int(os.environ[v])
+            break
+    global_rank = 0
+    for v in ("RANK", "PMI_RANK", "SLURM_PROCID", "OMPI_COMM_WORLD_RANK"):
+        if v in os.environ:
+            global_rank = int(os.environ[v])
+            break
+    world_size = 1
+    for v in ("WORLD_SIZE", "PMI_SIZE", "SLURM_NTASKS", "OMPI_COMM_WORLD_SIZE"):
+        if v in os.environ:
+            world_size = int(os.environ[v])
+            break
+
+    return local_rank, global_rank, world_size
+
 
 def init_distributed_mode(args):
-    # launched with torch.distributed.launch
-    if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
-        args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ['WORLD_SIZE'])
-        args.gpu = int(os.environ['LOCAL_RANK'])
-    # launched with submitit on a slurm cluster
-    elif 'SLURM_PROCID' in os.environ:
-        args.rank = int(os.environ['SLURM_PROCID'])
-        args.gpu = args.rank % torch.cuda.device_count()
-    # launched naively with `python main_dino.py`
-    # we manually add MASTER_ADDR and MASTER_PORT to env variables
-    elif torch.cuda.is_available():
-        print('Will run the code on one GPU.')
-        args.rank, args.gpu, args.world_size = 0, 0, 1
-        os.environ['MASTER_ADDR'] = '127.0.0.1'
-        os.environ['MASTER_PORT'] = '29500'
+    args.distributed = False
+    args.world_size = 1
+    args.rank = 0  # global rank
+    args.local_rank = 0
+
+    if is_using_distributed():
+        if "SLURM_PROCID" in os.environ:
+            # DDP via SLURM
+            args.local_rank, args.rank, args.world_size = world_info_from_env()
+            # SLURM var -> torch.distributed vars in case needed
+            os.environ["LOCAL_RANK"] = str(args.local_rank)
+            os.environ["RANK"] = str(args.rank)
+            os.environ["WORLD_SIZE"] = str(args.world_size)
+            dist.init_process_group(
+                backend=args.dist_backend,
+                init_method=args.dist_url,
+                world_size=args.world_size,
+                rank=args.rank,
+            )
+        else:
+            # DDP via torchrun, torch.distributed.launch
+            args.local_rank, _, _ = world_info_from_env()
+            dist.init_process_group(
+                backend=args.dist_backend, init_method=args.dist_url
+            )
+            args.world_size = dist.get_world_size()
+            args.rank = dist.get_rank()
+        args.distributed = True
+
+    if torch.cuda.is_available():
+        if args.distributed:
+            device = "cuda:%d" % args.local_rank
+        else:
+            os.environ['MASTER_ADDR'] = '127.0.0.1'
+            os.environ['MASTER_PORT'] = '29500'
+            dist.init_process_group(
+                backend=args.dist_backend,
+                world_size=1,
+                rank=0,
+            )
+            device = "cuda:0"
+            args.distributed = True
+        torch.cuda.set_device(device)
+        args.gpu = device
     else:
-        print('Does not support training without GPU.')
-        sys.exit(1)
+        device = "cpu"
 
-    seconds = args.timeout if hasattr(args, "timeout") else 1800
-    timeout = datetime.timedelta(seconds=seconds)
-
-    dist.init_process_group(
-        backend=args.dist_backend,
-        init_method=args.dist_url,
-        world_size=args.world_size,
-        rank=args.rank,
-        timeout=timeout
+    print(
+        f"Initialized distributed mode: {args.distributed}, "
+        f"world size: {args.world_size}, rank: {args.rank}, "
+        f"local rank: {args.local_rank}, device: {device}"
     )
-
-    torch.cuda.set_device(args.gpu)
-    print('| distributed init (rank {}): {}'.format(
-        args.rank, args.dist_url), flush=True)
-    dist.barrier()
+    if args.distributed:
+        dist.barrier()
     _restrict_print_to_main_process()
 
 
