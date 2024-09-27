@@ -6,8 +6,6 @@ Other branches are available here (required for double-blind submission):
 - [SimSiam Branch (main)](https://anonymous.4open.science/r/pretraining-hard-views/README.md)
 - [SimCLR Branch](https://anonymous.4open.science/r/pretraining-hard-views-simclr/main.py)
 
-## Introduction
-
 ## Download Model Files
 (include pretraining, linear evaluation and finetuning checkpoints for both vanilla and hvp models)
 - [DINO models](https://bit.ly/4dirXw1) (45G)
