@@ -20,3 +20,16 @@ pip install omegaconf
 - [iBOT models](https://bit.ly/3WBEiGc) (11G)
 - [SimSiam models](https://bit.ly/3WG2p5x) (20G)
 - [SimCLR models](https://bit.ly/3LE64eL) (66G)
+
+## Citation
+Please acknowledge the usage of this code by citing the following publication:
+
+```
+@inproceedings{ferreira-iclr25a,
+  title        = {Beyond Random Augmentations: Pretraining with Hard Views},
+  author       = {F. Ferreira and I. Rapant and J. Franke and Hutter F.},
+  booktitle    = {The Thirteenth International Conference on Learning Representations},
+  year         = {2025},
+  URL          = {https://openreview.net/forum?id=AK1C55o4r7}
+}
+```
