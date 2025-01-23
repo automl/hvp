@@ -1,8 +1,8 @@
 # Beyond Random Augmentations: Pretraining with Hard Views
 
 Other branches are available here (required for double-blind submission):
-- [DINO branch](https://github.com/automl/pretraining-hard-views/tree/dino?tab=readme-ov-file)
-- [iBOT branch](https://anonymous.4open.science/r/pretraining-hard-views-ibot/INSTALL.md)
+- [DINO branch](https://github.com/automl/pretraining-hard-views/tree/dino)
+- [iBOT branch](https://github.com/automl/pretraining-hard-views/tree/ibot)
 - [SimSiam Branch (main)](https://anonymous.4open.science/r/pretraining-hard-views/README.md)
 - [SimCLR Branch](https://anonymous.4open.science/r/pretraining-hard-views-simclr/main.py)
 
