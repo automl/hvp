@@ -27,7 +27,7 @@ Please acknowledge the usage of this code by citing the following publication:
 ```
 @inproceedings{ferreira-iclr25a,
   title        = {Beyond Random Augmentations: Pretraining with Hard Views},
-  author       = {F. Ferreira and I. Rapant and J. Franke and Hutter F.},
+  author       = {F. Ferreira and I. Rapant and J. Franke and F. Hutter},
   booktitle    = {The Thirteenth International Conference on Learning Representations},
   year         = {2025},
   URL          = {https://openreview.net/forum?id=AK1C55o4r7}
