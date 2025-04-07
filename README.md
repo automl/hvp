@@ -38,6 +38,6 @@ Please acknowledge the usage of this code by citing the following publication:
   author       = {F. Ferreira and I. Rapant and J. Franke and F. Hutter},
   booktitle    = {The Thirteenth International Conference on Learning Representations},
   year         = {2025},
-  URL          = {https://openreview.net/forum?id=AK1C55o4r7}
+  URL          = {https://iclr.cc/virtual/2025/poster/30639}
 }
 ```
